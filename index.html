@@ -2738,13 +2738,23 @@ function handleExcelUpload(input) {
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      // Читаем raw=true чтобы получить числовые серийные номера дат
       const wb = XLSX.read(e.target.result, {type:'binary', cellDates:false, raw:false});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      // Получаем и raw (числа) и formatted (текст) версии
-      const dataRaw = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
-      const dataTxt = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
-      parseScheduleBlackFox(dataRaw, dataTxt);
+      let totalEmp = 0, detectedMk = '';
+      // Читаем ВСЕ листы файла
+      for (const sheetName of wb.SheetNames) {
+        const ws = wb.Sheets[sheetName];
+        const dataRaw = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+        const dataTxt = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
+        const result = parseScheduleBlackFox(dataRaw, dataTxt, sheetName);
+        if (result) { totalEmp += result.empCount; detectedMk = result.mk; }
+      }
+      if (detectedMk) {
+        const [y, m] = detectedMk.split('-').map(Number);
+        statusEl.textContent = `✅ Загружено: ${months[m-1]} ${y}, ${totalEmp} сотр. (${wb.SheetNames.length} листов)`;
+        showToast(`✅ График загружен: ${totalEmp} сотрудников из ${wb.SheetNames.length} отделов`, 'success');
+        renderScheduleTable();
+        renderAdminUsers();
+      }
     } catch(err) {
       statusEl.textContent = 'Ошибка: ' + err.message;
       console.error(err);
@@ -2758,9 +2768,9 @@ function handleExcelUpload(input) {
 // Стратегия: используем строку с ДНЯМИ НЕДЕЛИ (вс/пн/вт/ср/чт/пт/сб)
 // и вычисляем даты математически от первого числа месяца.
 // Это полностью исключает проблему смещения дат Excel.
-function parseScheduleBlackFox(dataRaw, dataTxt) {
+function parseScheduleBlackFox(dataRaw, dataTxt, sheetName) {
   const statusEl = document.getElementById('upload-status');
-  statusEl.textContent = 'Анализируем структуру...';
+  statusEl.textContent = `Анализируем лист: ${sheetName || ''}...`;
 
   // dataTxt — всё как строки (для имён, времён, заголовков)
   // dataRaw — числа как числа (для точного определения дат если нужно)
@@ -2809,8 +2819,8 @@ function parseScheduleBlackFox(dataRaw, dataTxt) {
   }
 
   if (dowRowIdx < 0) {
-    statusEl.textContent = '❌ Не найдена строка с днями недели (вс,пн,вт...). Проверьте файл.';
-    return;
+    console.warn(`[${sheetName}] Не найдена строка с днями недели`);
+    return null;
   }
   console.log(`Строка дней недели: ${dowRowIdx}, найдено: ${Object.keys(colToDow).length} дней`);
 
@@ -2867,13 +2877,14 @@ function parseScheduleBlackFox(dataRaw, dataTxt) {
   console.log('colToDay sample:', Object.entries(colToDay).slice(0,7).map(([c,d])=>`col${c}→${d}(${DOW_RU[new Date(year,month-1,d).getDay()]})`).join(', '));
 
   if (Object.keys(colToDay).length < 5) {
-    statusEl.textContent = '❌ Не удалось вычислить даты. Проверьте файл.';
-    return;
+    console.warn(`[${sheetName}] Не удалось вычислить даты`);
+    return null;
   }
 
   // ── 4. Парсим сотрудников ─────────────────────────────────────
   const mk = `${year}-${String(month).padStart(2,'0')}`;
-  DB.schedule[mk] = {};
+  // АРХИВ: не затираем старые данные — только добавляем/обновляем
+  if (!DB.schedule[mk]) DB.schedule[mk] = {};
 
   const isPositionHeader = (s) => {
     if (!s || s.length < 2) return false;
@@ -2953,11 +2964,9 @@ function parseScheduleBlackFox(dataRaw, dataTxt) {
   }
 
   saveDB();
-  renderScheduleTable();
-  renderAdminUsers();
   const loaded = Object.keys(colToDay).length;
-  statusEl.textContent = `✅ Загружено: ${months[month-1]} ${year}, ${empCount} сотр., ${loaded} дней`;
-  showToast(`✅ График загружен: ${empCount} сотрудников`, 'success');
+  console.log(`[${sheetName}] Загружено: ${empCount} сотр., ${loaded} дней, mk=${mk}`);
+  return { empCount, mk };
 }
 
 function exportSchedule() {

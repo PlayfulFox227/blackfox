@@ -2907,9 +2907,27 @@ function parseScheduleBlackFox(dataRaw, dataTxt, sheetName) {
     return null;
   };
 
-  let currentPosition = '';
+  // Должность может быть в строке dowRowIdx (col0) — берём её сразу
+  let currentPosition = (data[dowRowIdx]?.[0] || '').trim() || '';
   let empCount = 0;
   const colKeys = Object.keys(colToDay).map(Number);
+
+  // Улучшенная проверка заголовка должности:
+  // Заголовок = нет смен в строке И нет пробела (одно слово заглавными) ИЛИ известные паттерны должностей
+  const isPositionRow = (row, col0) => {
+    if (!col0) return false;
+    // Есть смены в строке — это точно не заголовок
+    if (colKeys.some(ci => parseShiftTime(row[ci]) !== null)) return false;
+    // Числа (телефон) — не должность
+    if (/^\d{7,}$/.test(col0)) return false;
+    // Строка "Часы" и похожие — пропускаем
+    if (/^часы/i.test(col0)) return false;
+    // Известные заголовки должностей
+    if (/^(старший|бармен|официант|администрат|управляющ|шеф|повар|су.шеф|клининг|вызывн|горячий|холодный|раздача)/i.test(col0)) return true;
+    // Только заглавные буквы — заголовок
+    if (/^[А-ЯЁA-Z][А-ЯЁA-Z\s\-\/]+$/.test(col0) && col0.length > 2) return true;
+    return false;
+  };
 
   for (let r = dowRowIdx + 1; r < data.length; r++) {
     const row = data[r] || [];
@@ -2917,10 +2935,15 @@ function parseScheduleBlackFox(dataRaw, dataTxt, sheetName) {
 
     const col0 = (row[0] || '').trim();
     if (!col0) continue;
-    if (/ответственн|управляющ|итого|директор/i.test(col0)) continue;
+    // Пропускаем технические строки
+    if (/^(итого|сумм|ревизия)/i.test(col0)) continue;
+    // Пропускаем телефонные номера
+    if (/^\d{7,}$/.test(col0)) continue;
+    // Пропускаем строки с часами
+    if (/^часы/i.test(col0)) continue;
 
-    if (isPositionHeader(col0)) { currentPosition = col0; continue; }
-    if (!col0.includes(' ') || isPositionHeader(col0)) continue;
+    // Это заголовок должности?
+    if (isPositionRow(row, col0)) { currentPosition = col0; continue; }
 
     const hasShift = colKeys.some(ci => parseShiftTime(row[ci]) !== null);
     if (!hasShift) continue;

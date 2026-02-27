@@ -2389,26 +2389,49 @@ function renderScheduleTable() {
     return;
   }
 
-  // Собираем список подразделений (названия листов Excel)
+  // Маппинг должностей → отдел (фоллбек для старых данных без поля dept)
+  const POSITION_TO_DEPT = {
+    'старший бармен':'БАР ', 'бармен':'БАР ',
+    'управляющий':'ЗАЛ', 'администраторы':'ЗАЛ', 'администратор':'ЗАЛ',
+    'старший официант':'ЗАЛ', 'официант бизнес ланч':'ЗАЛ',
+    'официант полный день':'ЗАЛ', 'официант вечер':'ЗАЛ',
+    'клининг':'ЗАЛ', 'вызывная':'ЗАЛ',
+    'шеф-повар':'КУХНЯ', 'повар бизнес-ланча':'КУХНЯ', 'су-шефы':'КУХНЯ',
+    'горячий цех':'КУХНЯ', 'холодный/раздача цех':'КУХНЯ', 'повар':'КУХНЯ'
+  };
+
+  // Функция получения dept сотрудника (с фоллбеком по должности)
+  const getEmpDept = (empDays) => {
+    for (const d of Object.values(empDays)) {
+      if (d && d.dept) return d.dept.trim();
+      if (d && d.position) {
+        const fb = POSITION_TO_DEPT[d.position.toLowerCase().trim()];
+        if (fb) return fb.trim();
+      }
+    }
+    return '';
+  };
+
+  // Собираем список подразделений
   const deptSet = new Set();
   Object.values(monthData).forEach(empDays => {
-    for (const d of Object.values(empDays)) {
-      if (d && d.dept) { deptSet.add(d.dept.trim()); break; }
-    }
+    const dept = getEmpDept(empDays);
+    if (dept) deptSet.add(dept);
   });
-  const depts = [...deptSet];
+  const depts = [...deptSet].sort();
 
-  // Если activeDept не существует — берём первый
-  if (activeDept !== 'all' && depts.length && !depts.includes(activeDept)) activeDept = depts[0];
+  // Если activeDept не существует — сбрасываем на all
+  if (activeDept !== 'all' && depts.length && !depts.includes(activeDept)) activeDept = 'all';
 
   // Рендерим табы подразделений
   const tabsEl = document.getElementById('dept-tabs');
   if (tabsEl) {
-    const icons = {'БАР':'🍹','ЗАЛ':'🍽️','КУХНЯ':'👨‍🍳'};
+    const icons = {'БАР':'🍹','БАР ':'🍹','ЗАЛ':'🍽️','КУХНЯ':'👨‍🍳'};
     let tabsHtml = `<button class="qbtn ${activeDept==='all'?'active':''}" onclick="setDept('all')">🏢 Все</button>`;
     depts.forEach(d => {
-      const icon = icons[d.toUpperCase()] || '📋';
-      tabsHtml += `<button class="qbtn ${activeDept===d?'active':''}" onclick="setDept(${JSON.stringify(d)})">${icon} ${d}</button>`;
+      const icon = icons[d.toUpperCase().trim()] || '📋';
+      const isActive = activeDept === d;
+      tabsHtml += `<button class="qbtn ${isActive?'active':''}" onclick="setDept(${JSON.stringify(d)})">${icon} ${d.trim()}</button>`;
     });
     tabsEl.innerHTML = tabsHtml;
   }
@@ -2417,10 +2440,7 @@ function renderScheduleTable() {
   const filteredData = {};
   Object.entries(monthData).forEach(([emp, empDays]) => {
     if (activeDept === 'all') { filteredData[emp] = empDays; return; }
-    let empDept = '';
-    for (const d of Object.values(empDays)) {
-      if (d && d.dept) { empDept = d.dept.trim(); break; }
-    }
+    const empDept = getEmpDept(empDays);
     if (empDept === activeDept) filteredData[emp] = empDays;
   });
 

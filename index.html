@@ -1389,6 +1389,43 @@ function subscribeSupabase() {
     .subscribe();
 }
 
+function patchDeptInSchedule() {
+  // Маппинг должностей → отдел для старых данных без поля dept
+  const POS_DEPT = {
+    'старший бармен':'БАР', 'бармен':'БАР',
+    'управляющий':'ЗАЛ', 'администраторы':'ЗАЛ', 'администратор':'ЗАЛ',
+    'старший официант':'ЗАЛ', 'официант бизнес ланч':'ЗАЛ',
+    'официант полный день':'ЗАЛ', 'официант вечер':'ЗАЛ',
+    'клининг':'ЗАЛ', 'вызывная':'ЗАЛ',
+    'шеф-повар':'КУХНЯ', 'повар бизнес-ланча':'КУХНЯ', 'су-шефы':'КУХНЯ',
+    'горячий цех':'КУХНЯ', 'холодный/раздача цех':'КУХНЯ', 'повар':'КУХНЯ'
+  };
+  let patched = false;
+  if (!DB.schedule) return;
+  Object.values(DB.schedule).forEach(monthData => {
+    Object.values(monthData).forEach(empDays => {
+      // Находим dept сотрудника по первой должности
+      let dept = '';
+      for (const d of Object.values(empDays)) {
+        if (d && d.dept) { dept = d.dept; break; }
+        if (d && d.position) {
+          dept = POS_DEPT[d.position.toLowerCase().trim()] || '';
+          if (dept) break;
+        }
+      }
+      if (!dept) return;
+      // Проставляем dept везде где его нет
+      Object.values(empDays).forEach(d => {
+        if (d && !d.dept) { d.dept = dept; patched = true; }
+      });
+    });
+  });
+  if (patched) {
+    console.log('Патч dept выполнен — сохраняем');
+    saveDB();
+  }
+}
+
 async function loadDB() {
   initTheme();
   const localCache = localStorage.getItem('bfox_db_cache');
@@ -1427,6 +1464,9 @@ async function loadDB() {
   // ВСЕГДА скрываем загрузку и показываем страницу входа
   hideLoading();
   subscribeSupabase();
+
+  // Патч старых данных — проставляем dept по должности если не задан
+  patchDeptInSchedule();
 
   const savedId = localStorage.getItem('bfox_current');
   if (savedId && DB.users) {
@@ -2391,11 +2431,14 @@ function renderScheduleTable() {
 
   // Маппинг должностей → отдел (фоллбек для старых данных без поля dept)
   const POSITION_TO_DEPT = {
-    'старший бармен':'БАР ', 'бармен':'БАР ',
+    // БАР
+    'старший бармен':'БАР', 'бармен':'БАР',
+    // ЗАЛ
     'управляющий':'ЗАЛ', 'администраторы':'ЗАЛ', 'администратор':'ЗАЛ',
     'старший официант':'ЗАЛ', 'официант бизнес ланч':'ЗАЛ',
     'официант полный день':'ЗАЛ', 'официант вечер':'ЗАЛ',
-    'клининг':'ЗАЛ', 'вызывная':'ЗАЛ',
+    'клининг':'ЗАЛ', 'вызывная':'ЗАЛ', 'прочие':'ЗАЛ',
+    // КУХНЯ
     'шеф-повар':'КУХНЯ', 'повар бизнес-ланча':'КУХНЯ', 'су-шефы':'КУХНЯ',
     'горячий цех':'КУХНЯ', 'холодный/раздача цех':'КУХНЯ', 'повар':'КУХНЯ'
   };

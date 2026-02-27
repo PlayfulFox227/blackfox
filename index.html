@@ -891,6 +891,8 @@
         <div style="flex:1;text-align:center;font-size:16px;font-weight:700" id="sched-month-label"></div>
         <button class="btn-icon" onclick="changeMonth(1)">→</button>
       </div>
+      <!-- Табы подразделений -->
+      <div id="dept-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;overflow-x:auto;padding-bottom:4px"></div>
       <div class="schedule-scroll">
         <div id="schedule-table-wrap"></div>
       </div>
@@ -1248,6 +1250,7 @@ let LOCAL = {};
 
 let currentUser = null;
 let scheduleMonth = new Date();
+let activeDept = 'all';
 let noteModalDate = null;
 
 // ============================================================
@@ -2381,14 +2384,49 @@ function renderScheduleTable() {
   const todayNum=(today.getFullYear()===y && today.getMonth()+1===m)?today.getDate():0;
 
   if(!monthData || Object.keys(monthData).length===0) {
+    document.getElementById('dept-tabs').innerHTML='';
     document.getElementById('schedule-table-wrap').innerHTML=`<div class="empty-state"><div class="empty-icon">📊</div><p>График не загружен<br>Обратитесь к администратору</p></div>`;
     return;
   }
 
+  // Собираем список подразделений (названия листов Excel)
+  const deptSet = new Set();
+  Object.values(monthData).forEach(empDays => {
+    for (const d of Object.values(empDays)) {
+      if (d && d.dept) { deptSet.add(d.dept.trim()); break; }
+    }
+  });
+  const depts = [...deptSet];
+
+  // Если activeDept не существует — берём первый
+  if (activeDept !== 'all' && depts.length && !depts.includes(activeDept)) activeDept = depts[0];
+
+  // Рендерим табы подразделений
+  const tabsEl = document.getElementById('dept-tabs');
+  if (tabsEl) {
+    const icons = {'БАР':'🍹','ЗАЛ':'🍽️','КУХНЯ':'👨‍🍳'};
+    let tabsHtml = `<button class="qbtn ${activeDept==='all'?'active':''}" onclick="setDept('all')">🏢 Все</button>`;
+    depts.forEach(d => {
+      const icon = icons[d.toUpperCase()] || '📋';
+      tabsHtml += `<button class="qbtn ${activeDept===d?'active':''}" onclick="setDept(${JSON.stringify(d)})">${icon} ${d}</button>`;
+    });
+    tabsEl.innerHTML = tabsHtml;
+  }
+
+  // Фильтруем сотрудников по активному подразделению
+  const filteredData = {};
+  Object.entries(monthData).forEach(([emp, empDays]) => {
+    if (activeDept === 'all') { filteredData[emp] = empDays; return; }
+    let empDept = '';
+    for (const d of Object.values(empDays)) {
+      if (d && d.dept) { empDept = d.dept.trim(); break; }
+    }
+    if (empDept === activeDept) filteredData[emp] = empDays;
+  });
+
   // Группируем по должностям
   const byPosition = {};
-  Object.entries(monthData).forEach(([emp, days_]) => {
-    // Определяем должность из первого дня где есть данные
+  Object.entries(filteredData).forEach(([emp, days_]) => {
     let pos = 'Прочие';
     for (const d of Object.values(days_)) {
       if (d && d.position) { pos = d.position; break; }
@@ -2397,7 +2435,7 @@ function renderScheduleTable() {
     byPosition[pos].push(emp);
   });
 
-  // Строим шапку таблицы с номерами дней + день недели
+  // Строим таблицу
   const DOW = ['вс','пн','вт','ср','чт','пт','сб'];
   let html=`<table class="schedule-table"><thead><tr><th>Сотрудник</th>`;
   for(let d=1;d<=days;d++) {
@@ -2409,13 +2447,10 @@ function renderScheduleTable() {
   }
   html+=`</tr></thead><tbody>`;
 
-  // Рендерим по группам должностей
   Object.entries(byPosition).forEach(([position, emps]) => {
-    // Строка-заголовок должности
     html+=`<tr><td colspan="${days+1}" style="background:var(--bg4);color:var(--red);font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:8px 12px;text-align:left">${position}</td></tr>`;
-
     emps.sort().forEach(emp => {
-      const empData = monthData[emp] || {};
+      const empData = filteredData[emp] || {};
       const totalH = Object.values(empData).reduce((s,c)=>s+(c?.hours||0),0);
       html+=`<tr><td>${emp}<div style="font-size:10px;color:var(--text3);font-weight:400;margin-top:2px">${totalH>0?Math.round(totalH*10)/10+'ч':''}</div></td>`;
       for(let d=1;d<=days;d++) {
@@ -2440,6 +2475,11 @@ function renderScheduleTable() {
 
   html+=`</tbody></table>`;
   document.getElementById('schedule-table-wrap').innerHTML=html;
+}
+
+function setDept(dept) {
+  activeDept = dept;
+  renderScheduleTable();
 }
 
 // ============================================================
@@ -2970,7 +3010,8 @@ function parseScheduleBlackFox(dataRaw, dataTxt, sheetName) {
       }
 
       DB.schedule[mk][empName][dayNum] = {
-        start: t.start, end: t.end, hours, position: currentPosition
+        start: t.start, end: t.end, hours, position: currentPosition,
+        dept: (sheetName || '').trim()
       };
     }
 

@@ -1014,6 +1014,14 @@
         </div>
       </div>
 
+      <!-- Push notifications toggle -->
+      <div id="push-toggle-wrap" style="margin-bottom:16px;display:none">
+        <button id="push-toggle-btn"
+          style="width:100%;padding:14px;border-radius:var(--radius-sm);border:1px solid rgba(232,33,42,0.3);background:rgba(232,33,42,0.08);color:var(--red);font-family:Manrope,sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s">
+          🔕 Включить уведомления о сменах
+        </button>
+      </div>
+
       <div class="calc-card">
         <h3 style="font-size:16px;font-weight:800;margin-bottom:20px">💰 Расчёт зарплаты</h3>
         <div class="calc-field">
@@ -2011,6 +2019,12 @@ function renderProfile() {
   const mk = monthKey(new Date());
   const monthData = DB.schedule[mk] || {};
   const emps = Object.keys(monthData);
+
+  // Show/hide push button based on whether viewing own profile
+  setTimeout(() => {
+    const wrap = document.getElementById('push-toggle-wrap');
+    if (wrap) { wrap.style.display = 'block'; checkPushStatus(); }
+  }, 300);
 
   // Build tabs: current user first, then others
   let tabs = [];
@@ -4271,6 +4285,86 @@ window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
   document.getElementById('pwa-banner')?.remove();
 });
+
+// ── PUSH NOTIFICATIONS ────────────────────────────────────────
+const VAPID_PUBLIC_KEY = 'BK3J7kc96Vm4ewM4KixwowPXfFeoqSRXbi-tsBDmoHvMpNsoIjlOASW5EZR7NGP6Nm8N4cVQGRqfqQNGLZQmgEI';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function subscribeToPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+  const sw  = await navigator.serviceWorker.ready;
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') {
+    showToast('Уведомления отклонены', 'error');
+    return;
+  }
+
+  try {
+    const sub = await sw.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+
+    // Save subscription to Supabase
+    const login = currentUser?.login || '';
+    if (!login) { showToast('Войдите в аккаунт для уведомлений', 'error'); return; }
+
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .upsert({ login, subscription: sub.toJSON() }, { onConflict: 'login' });
+
+    if (error) throw error;
+    showToast('🔔 Уведомления о сменах включены!', 'success');
+    updatePushButton(true);
+  } catch(e) {
+    console.error('Push subscribe error:', e);
+    showToast('Ошибка подключения уведомлений', 'error');
+  }
+}
+
+async function unsubscribeFromPush() {
+  const sw  = await navigator.serviceWorker.ready;
+  const sub = await sw.pushManager.getSubscription();
+  if (sub) await sub.unsubscribe();
+
+  const login = currentUser?.login || '';
+  if (login) await supabase.from('push_subscriptions').delete().eq('login', login);
+
+  showToast('🔕 Уведомления отключены', 'success');
+  updatePushButton(false);
+}
+
+async function checkPushStatus() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const sw  = await navigator.serviceWorker.ready;
+  const sub = await sw.pushManager.getSubscription();
+  updatePushButton(!!sub);
+}
+
+function updatePushButton(isActive) {
+  const btn = document.getElementById('push-toggle-btn');
+  if (!btn) return;
+  if (isActive) {
+    btn.textContent = '🔔 Уведомления включены';
+    btn.style.background = 'rgba(76,175,80,0.15)';
+    btn.style.borderColor = '#4caf50';
+    btn.style.color = '#4caf50';
+    btn.onclick = unsubscribeFromPush;
+  } else {
+    btn.textContent = '🔕 Включить уведомления';
+    btn.style.background = 'rgba(232,33,42,0.08)';
+    btn.style.borderColor = 'rgba(232,33,42,0.3)';
+    btn.style.color = 'var(--red)';
+    btn.onclick = subscribeToPush;
+  }
+}
 
 
 loadDB();

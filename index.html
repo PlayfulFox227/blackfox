@@ -1050,7 +1050,10 @@
             <option value="">— выберите месяц —</option>
           </select>
         </div>
-        <div id="admin-salary-table"><div style="color:var(--text3);font-size:13px">Выберите месяц</div></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:-6px;margin-bottom:14px">
+          <button onclick="initAdminSalaryMonths()" style="background:none;border:1px solid var(--border);border-radius:20px;padding:5px 14px;color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;font-family:Manrope,sans-serif">🔄 Обновить</button>
+        </div>
+        <div id="admin-salary-table"><div style="color:var(--text3);font-size:13px">Нажмите «Обновить» или выберите месяц</div></div>
       </div>
 
       <!-- Upload schedule -->
@@ -2079,26 +2082,39 @@ function renderProfileContent(name) {
     Object.values(ad).forEach(v => { if(v?.start) { allShifts++; allHours += v.hours||0; } });
   });
 
-  html += `<div class="stats-grid">
-    <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val">${totalShifts}</div><div class="stat-label">Смен за месяц</div></div>
-    <div class="stat-card"><div class="stat-icon">⏱</div><div class="stat-val">${totalHours.toFixed(1)}<span> ч</span></div><div class="stat-label">Отработано часов</div></div>
-    <div class="stat-card"><div class="stat-icon">😴</div><div class="stat-val">${offDays}</div><div class="stat-label">Выходных дней</div></div>
-    ${(()=>{
-    if(currentUser.role!=='admin'&&currentUser.name!==name) return '';
-    const bc=salary>0?'rgba(76,175,80,0.3)':'var(--border)';
-    const vc=salary>0?'#4caf50':'var(--text2)';
-    const sv=salary>0?salary.toLocaleString('ru'):rate>0?'0':'-';
-    const rl=rate>0?' · '+rate+(rateType==='shift'?' ₽/см':' ₽/ч'):'';
-    return '<div class="stat-card" style="cursor:pointer;border-color:'+bc+'" onclick="openSalaryModal(\''+name+'\')">'
+  // Calc yearly hours for current year
+  const curYear = new Date().getFullYear();
+  let yearHours = 0, yearShifts = 0;
+  Object.entries(DB.schedule || {}).forEach(([mmk, mdata]) => {
+    if (!mmk.startsWith(curYear+'-')) return;
+    const ed = (mdata || {})[name] || {};
+    Object.values(ed).forEach(v => { if (v && v.start) { yearShifts++; yearHours += v.hours||0; } });
+  });
+
+  // Salary card HTML (only for self or admin)
+  const salaryCardHtml = (currentUser.role==='admin'||currentUser.name===name) ? (()=>{
+    const bc = salary>0 ? 'rgba(76,175,80,0.3)' : 'var(--border)';
+    const vc = salary>0 ? '#4caf50' : 'var(--text2)';
+    const sv = salary>0 ? salary.toLocaleString('ru') : (rate>0 ? '0' : '—');
+    const rl = rate>0 ? ' · '+rate+(rateType==='shift'?' ₽/см':' ₽/ч') : '';
+    const hint = rate>0 ? '' : '<div style="font-size:10px;color:var(--red);margin-top:2px">Нажмите для настройки</div>';
+    return '<div class="stat-card" style="cursor:pointer;border-color:'+bc+';position:relative" onclick="openSalaryModal(\''+name+'\')">'
       +'<div class="stat-icon">💰</div>'
       +'<div class="stat-val" style="color:'+vc+'">'+sv+'<span style="font-size:13px"> ₽</span></div>'
       +'<div class="stat-label">Зарплата'+rl+'</div>'
+      +hint
       +'</div>';
-  })()}}
+  })() : '';
+
+  html += `<div class="stats-grid">
+    <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val">${totalShifts}</div><div class="stat-label">Смен за месяц</div></div>
+    <div class="stat-card"><div class="stat-icon">⏱</div><div class="stat-val">${totalHours.toFixed(1)}<span> ч</span></div><div class="stat-label">Часов за месяц</div></div>
+    <div class="stat-card"><div class="stat-icon">😴</div><div class="stat-val">${offDays}</div><div class="stat-label">Выходных дней</div></div>
+    ${salaryCardHtml}
     <div class="stat-card"><div class="stat-icon">⚡</div><div class="stat-val">${avgHoursPerShift.toFixed(1)}<span> ч</span></div><div class="stat-label">Средняя смена</div></div>
     <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-val">${extraHours.toFixed(1)}<span> ч</span></div><div class="stat-label">Подработки</div></div>
-    <div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-val">${allShifts}</div><div class="stat-label">Смен всего</div></div>
-    <div class="stat-card"><div class="stat-icon">🕐</div><div class="stat-val">${allHours.toFixed(0)}<span> ч</span></div><div class="stat-label">Часов всего</div></div>
+    <div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-val">${yearShifts}</div><div class="stat-label">Смен за ${curYear}</div></div>
+    <div class="stat-card"><div class="stat-icon">🕐</div><div class="stat-val">${yearHours.toFixed(0)}<span> ч</span></div><div class="stat-label">Часов за ${curYear}</div></div>
   </div>
   ${user && rate > 0 ? `
   <div class="card" style="margin-bottom:16px;background:linear-gradient(135deg,var(--bg3),var(--bg2));border:1px solid var(--red-dark)">

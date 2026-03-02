@@ -3,6 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#e8212a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Black Fox">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+  <link rel="apple-touch-icon" sizes="144x144" href="icon-144.png">
+  <link rel="apple-touch-icon" sizes="128x128" href="icon-128.png">
 <title>Black Fox — Учёт смен</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4190,6 +4202,75 @@ function iртSave(empName, mk) {
   // Re-render FOT table
   refreshAdminSalary();
 }
+
+
+// ── PWA SERVICE WORKER ────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => {
+        console.log('SW registered:', reg.scope);
+        // Check for updates every hour
+        setInterval(() => reg.update(), 60 * 60 * 1000);
+      })
+      .catch(err => console.log('SW registration failed:', err));
+  });
+}
+
+// ── PWA INSTALL BANNER ────────────────────────────────────────
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Show install banner after 3 seconds if not already installed
+  setTimeout(showInstallBanner, 3000);
+});
+
+function showInstallBanner() {
+  if (!deferredPrompt) return;
+  if (document.getElementById('pwa-banner')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'pwa-banner';
+  banner.style.cssText = `
+    position:fixed; bottom:80px; left:50%; transform:translateX(-50%);
+    background:var(--bg2); border:1px solid var(--red);
+    border-radius:16px; padding:14px 20px;
+    display:flex; align-items:center; gap:14px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.5);
+    z-index:9998; max-width:340px; width:calc(100% - 40px);
+    animation:slideUp .3s ease;
+  `;
+  banner.innerHTML = `
+    <img src="icon-72.png" style="width:44px;height:44px;border-radius:10px;flex-shrink:0">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:800;font-size:14px">Установить Black Fox</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">Работает как приложение</div>
+    </div>
+    <button onclick="installPWA()" style="background:var(--red);color:#fff;border:none;border-radius:20px;padding:8px 16px;font-family:Manrope,sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">Установить</button>
+    <button onclick="document.getElementById('pwa-banner').remove()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:0 4px;line-height:1">×</button>
+  `;
+  document.body.appendChild(banner);
+}
+
+function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(choice => {
+    if (choice.outcome === 'accepted') {
+      showToast('✅ Black Fox установлен на устройство!', 'success');
+    }
+    deferredPrompt = null;
+    document.getElementById('pwa-banner')?.remove();
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  showToast('🎉 Black Fox установлен!', 'success');
+  deferredPrompt = null;
+  document.getElementById('pwa-banner')?.remove();
+});
 
 
 loadDB();

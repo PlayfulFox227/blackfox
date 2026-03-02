@@ -45,6 +45,37 @@
   body.light-theme .sidebar { background: #fff; border-color: #e0e0e0; }
   body.light-theme .bottom-nav { background: #fff; border-color: #e0e0e0; }
   body.light-theme .top-header { background: rgba(244,244,246,0.95); border-color: #e0e0e0; }
+
+  /* ===== DEPARTMENT TABS ===== */
+  .dept-tab {
+    flex-shrink: 0;
+    background: var(--bg3);
+    border: 1.5px solid var(--border);
+    border-radius: 50px;
+    padding: 8px 20px;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: Manrope, sans-serif;
+    transition: all .2s;
+    white-space: nowrap;
+    position: relative;
+  }
+  .dept-tab.active {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+    box-shadow: 0 3px 16px rgba(232,33,42,0.35);
+  }
+  .dept-tab:hover:not(.active) {
+    border-color: var(--red);
+    color: var(--red);
+    background: var(--red-glow);
+  }
+  body.light-theme .dept-tab { background: #f0f0f0; border-color: #ddd; color: #444; }
+  body.light-theme .dept-tab:hover:not(.active) { background: rgba(232,33,42,0.05); }
+
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
     background: var(--bg);
@@ -104,7 +135,19 @@
     filter: drop-shadow(0 0 24px rgba(232,33,42,0.6));
     animation: pulse 3s ease infinite;
   }
-  .login-brand-icon img { width: 100%; height: 100%; object-fit: contain; }
+  .login-brand-icon img { width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+  .login-brand-icon:hover::after {
+    content: 'Сменить логотип';
+    position: absolute;
+    bottom: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--text3);
+    white-space: nowrap;
+    font-family: Manrope, sans-serif;
+  }
+  .login-brand-icon { position: relative; }
   @keyframes pulse {
     0%,100% { box-shadow: 0 0 40px rgba(232,33,42,0.5), 0 0 80px rgba(232,33,42,0.2); }
     50% { box-shadow: 0 0 55px rgba(232,33,42,0.7), 0 0 100px rgba(232,33,42,0.3); }
@@ -886,13 +929,21 @@
     <!-- SCHEDULE PAGE -->
     <div class="page" id="page-schedule">
       <div class="section-title">Общий график</div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
         <button class="btn-icon" onclick="changeMonth(-1)">←</button>
         <div style="flex:1;text-align:center;font-size:16px;font-weight:700" id="sched-month-label"></div>
         <button class="btn-icon" onclick="changeMonth(1)">→</button>
       </div>
-      <!-- Табы подразделений -->
-      <div id="dept-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;overflow-x:auto;padding-bottom:4px"></div>
+      <!-- Department tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px" id="dept-tabs-wrap">
+        <button class="dept-tab active" id="dtab-all" onclick="setDeptTab('all')">🏠 Все</button>
+        <button class="dept-tab" id="dtab-hall" onclick="setDeptTab('hall')">🪑 Зал</button>
+        <button class="dept-tab" id="dtab-bar" onclick="setDeptTab('bar')">🍹 Бар</button>
+        <button class="dept-tab" id="dtab-kitchen" onclick="setDeptTab('kitchen')">🍳 Кухня</button>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button onclick="exportCurrentSchedulePDF()" style="background:none;border:1px solid var(--border);border-radius:20px;padding:5px 14px;color:var(--text3);font-size:12px;font-weight:600;cursor:pointer;font-family:Manrope,sans-serif;transition:all .2s" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text3)'">📄 PDF</button>
+      </div>
       <div class="schedule-scroll">
         <div id="schedule-table-wrap"></div>
       </div>
@@ -994,14 +1045,38 @@
       <!-- Upload schedule -->
       <div class="admin-section">
         <h3>📤 Загрузка графика</h3>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px">Месяц</div>
+            <select id="upload-month-sel" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-family:Manrope,sans-serif;font-size:13px;outline:none">
+              <option value="">Авто (из файла)</option>
+              <option value="1">Январь</option><option value="2">Февраль</option><option value="3">Март</option>
+              <option value="4">Апрель</option><option value="5">Май</option><option value="6">Июнь</option>
+              <option value="7">Июль</option><option value="8">Август</option><option value="9">Сентябрь</option>
+              <option value="10">Октябрь</option><option value="11">Ноябрь</option><option value="12">Декабрь</option>
+            </select>
+          </div>
+          <div style="flex:0 0 90px">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px">Год</div>
+            <select id="upload-year-sel" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-family:Manrope,sans-serif;font-size:13px;outline:none">
+              <option value="2025">2025</option>
+              <option value="2026" selected>2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
+            </select>
+          </div>
+        </div>
         <div class="upload-area" onclick="document.getElementById('excel-file').click()">
           <input type="file" id="excel-file" accept=".xlsx,.xls" onchange="handleExcelUpload(this)">
           <div class="upload-icon">📊</div>
           <div class="upload-text">Нажмите для выбора Excel файла</div>
-          <div class="upload-hint">Формат: .xlsx или .xls</div>
+          <div class="upload-hint">Формат: .xlsx или .xls · Загружаются все листы (Зал, Бар, Кухня)</div>
         </div>
-        <div id="upload-status" style="font-size:13px;color:var(--text2);margin-top:8px"></div>
-        <button class="calc-btn" style="margin-top:12px" onclick="exportSchedule()">📥 Выгрузить график (JSON)</button>
+        <div id="upload-status" style="font-size:13px;color:var(--text2);margin-top:8px;line-height:1.6"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="calc-btn" style="flex:1;background:var(--bg3);color:var(--text2);border:1px solid var(--border)" onclick="exportCurrentSchedulePDF()">📄 Скачать PDF</button>
+          <button class="calc-btn" style="flex:1;background:rgba(232,33,42,0.08);color:var(--red);border:1px solid rgba(232,33,42,0.25)" onclick="clearMonthSchedule()">🗑 Очистить месяц</button>
+        </div>
       </div>
 
       <!-- Admin note -->
@@ -1250,7 +1325,31 @@ let LOCAL = {};
 
 let currentUser = null;
 let scheduleMonth = new Date();
-let activeDept = 'all';
+let currentDept = 'all'; // 'all' | 'hall' | 'bar' | 'kitchen'
+
+// Keywords that identify each sheet/department
+const DEPT_KEYWORDS = {
+  hall:    ['зал', 'hall', 'официант', 'сервис', 'зала'],
+  bar:     ['бар', 'bar', 'гриль', 'grille', 'bartend'],
+  kitchen: ['кухня', 'kitchen', 'кухн', 'повар', 'кухонн']
+};
+
+function detectDeptByName(name) {
+  const n = (name || '').toLowerCase();
+  for (const [key, words] of Object.entries(DEPT_KEYWORDS)) {
+    if (words.some(w => n.includes(w))) return key;
+  }
+  return 'unknown';
+}
+
+function setDeptTab(dept) {
+  currentDept = dept;
+  ['all','hall','bar','kitchen'].forEach(d => {
+    const el = document.getElementById('dtab-' + d);
+    if (el) el.classList.toggle('active', d === dept);
+  });
+  renderScheduleTable();
+}
 let noteModalDate = null;
 
 // ============================================================
@@ -1389,43 +1488,6 @@ function subscribeSupabase() {
     .subscribe();
 }
 
-function patchDeptInSchedule() {
-  // Маппинг должностей → отдел для старых данных без поля dept
-  const POS_DEPT = {
-    'старший бармен':'БАР', 'бармен':'БАР',
-    'управляющий':'ЗАЛ', 'администраторы':'ЗАЛ', 'администратор':'ЗАЛ',
-    'старший официант':'ЗАЛ', 'официант бизнес ланч':'ЗАЛ',
-    'официант полный день':'ЗАЛ', 'официант вечер':'ЗАЛ',
-    'клининг':'ЗАЛ', 'вызывная':'ЗАЛ',
-    'шеф-повар':'КУХНЯ', 'повар бизнес-ланча':'КУХНЯ', 'су-шефы':'КУХНЯ',
-    'горячий цех':'КУХНЯ', 'холодный/раздача цех':'КУХНЯ', 'повар':'КУХНЯ'
-  };
-  let patched = false;
-  if (!DB.schedule) return;
-  Object.values(DB.schedule).forEach(monthData => {
-    Object.values(monthData).forEach(empDays => {
-      // Находим dept сотрудника по первой должности
-      let dept = '';
-      for (const d of Object.values(empDays)) {
-        if (d && d.dept) { dept = d.dept; break; }
-        if (d && d.position) {
-          dept = POS_DEPT[d.position.toLowerCase().trim()] || '';
-          if (dept) break;
-        }
-      }
-      if (!dept) return;
-      // Проставляем dept везде где его нет
-      Object.values(empDays).forEach(d => {
-        if (d && !d.dept) { d.dept = dept; patched = true; }
-      });
-    });
-  });
-  if (patched) {
-    console.log('Патч dept выполнен — сохраняем');
-    saveDB();
-  }
-}
-
 async function loadDB() {
   initTheme();
   const localCache = localStorage.getItem('bfox_db_cache');
@@ -1464,9 +1526,6 @@ async function loadDB() {
   // ВСЕГДА скрываем загрузку и показываем страницу входа
   hideLoading();
   subscribeSupabase();
-
-  // Патч старых данных — проставляем dept по должности если не задан
-  patchDeptInSchedule();
 
   const savedId = localStorage.getItem('bfox_current');
   if (savedId && DB.users) {
@@ -2419,77 +2478,35 @@ function renderScheduleTable() {
   const mk=`${y}-${String(m).padStart(2,'0')}`;
   document.getElementById('sched-month-label').textContent=`${months[m-1]} ${y}`;
   const days=daysInMonth(y,m);
-  const monthData=DB.schedule[mk];
+  const rawData=DB.schedule[mk];
   const today=new Date();
   const todayNum=(today.getFullYear()===y && today.getMonth()+1===m)?today.getDate():0;
 
-  if(!monthData || Object.keys(monthData).length===0) {
-    document.getElementById('dept-tabs').innerHTML='';
+  if(!rawData || Object.keys(rawData).length===0) {
     document.getElementById('schedule-table-wrap').innerHTML=`<div class="empty-state"><div class="empty-icon">📊</div><p>График не загружен<br>Обратитесь к администратору</p></div>`;
     return;
   }
 
-  // Маппинг должностей → отдел (фоллбек для старых данных без поля dept)
-  const POSITION_TO_DEPT = {
-    // БАР
-    'старший бармен':'БАР', 'бармен':'БАР',
-    // ЗАЛ
-    'управляющий':'ЗАЛ', 'администраторы':'ЗАЛ', 'администратор':'ЗАЛ',
-    'старший официант':'ЗАЛ', 'официант бизнес ланч':'ЗАЛ',
-    'официант полный день':'ЗАЛ', 'официант вечер':'ЗАЛ',
-    'клининг':'ЗАЛ', 'вызывная':'ЗАЛ', 'прочие':'ЗАЛ',
-    // КУХНЯ
-    'шеф-повар':'КУХНЯ', 'повар бизнес-ланча':'КУХНЯ', 'су-шефы':'КУХНЯ',
-    'горячий цех':'КУХНЯ', 'холодный/раздача цех':'КУХНЯ', 'повар':'КУХНЯ'
-  };
-
-  // Функция получения dept сотрудника (с фоллбеком по должности)
-  const getEmpDept = (empDays) => {
-    for (const d of Object.values(empDays)) {
-      if (d && d.dept) return d.dept.trim();
-      if (d && d.position) {
-        const fb = POSITION_TO_DEPT[d.position.toLowerCase().trim()];
-        if (fb) return fb.trim();
-      }
-    }
-    return '';
-  };
-
-  // Собираем список подразделений
-  const deptSet = new Set();
-  Object.values(monthData).forEach(empDays => {
-    const dept = getEmpDept(empDays);
-    if (dept) deptSet.add(dept);
-  });
-  const depts = [...deptSet].sort();
-
-  // Если activeDept не существует — сбрасываем на all
-  if (activeDept !== 'all' && depts.length && !depts.includes(activeDept)) activeDept = 'all';
-
-  // Рендерим табы подразделений
-  const tabsEl = document.getElementById('dept-tabs');
-  if (tabsEl) {
-    const icons = {'БАР':'🍹','БАР ':'🍹','ЗАЛ':'🍽️','КУХНЯ':'👨‍🍳'};
-    let tabsHtml = `<button class="qbtn ${activeDept==='all'?'active':''}" onclick="setDept('all')">🏢 Все</button>`;
-    depts.forEach(d => {
-      const icon = icons[d.toUpperCase().trim()] || '📋';
-      const isActive = activeDept === d;
-      tabsHtml += `<button class="qbtn ${isActive?'active':''}" onclick="setDept(${JSON.stringify(d)})">${icon} ${d.trim()}</button>`;
+  // Filter by department
+  let monthData = rawData;
+  if (currentDept !== 'all') {
+    monthData = {};
+    Object.entries(rawData).forEach(([emp, empDays]) => {
+      // dept stored on each shift cell
+      const empDept = Object.values(empDays).find(d => d && d.dept)?.dept;
+      if (empDept === currentDept) monthData[emp] = empDays;
     });
-    tabsEl.innerHTML = tabsHtml;
+    if (Object.keys(monthData).length === 0) {
+      const deptLabel = {hall:'Зал',bar:'Бар',kitchen:'Кухня'}[currentDept] || currentDept;
+      document.getElementById('schedule-table-wrap').innerHTML=`<div class="empty-state"><div class="empty-icon">📂</div><p>Нет данных для подразделения «${deptLabel}»<br><span style="font-size:12px;color:var(--text3)">Загрузите Excel с листами Зал / Бар / Кухня</span></p></div>`;
+      return;
+    }
   }
-
-  // Фильтруем сотрудников по активному подразделению
-  const filteredData = {};
-  Object.entries(monthData).forEach(([emp, empDays]) => {
-    if (activeDept === 'all') { filteredData[emp] = empDays; return; }
-    const empDept = getEmpDept(empDays);
-    if (empDept === activeDept) filteredData[emp] = empDays;
-  });
 
   // Группируем по должностям
   const byPosition = {};
-  Object.entries(filteredData).forEach(([emp, days_]) => {
+  Object.entries(monthData).forEach(([emp, days_]) => {
+    // Определяем должность из первого дня где есть данные
     let pos = 'Прочие';
     for (const d of Object.values(days_)) {
       if (d && d.position) { pos = d.position; break; }
@@ -2498,7 +2515,7 @@ function renderScheduleTable() {
     byPosition[pos].push(emp);
   });
 
-  // Строим таблицу
+  // Строим шапку таблицы с номерами дней + день недели
   const DOW = ['вс','пн','вт','ср','чт','пт','сб'];
   let html=`<table class="schedule-table"><thead><tr><th>Сотрудник</th>`;
   for(let d=1;d<=days;d++) {
@@ -2510,10 +2527,13 @@ function renderScheduleTable() {
   }
   html+=`</tr></thead><tbody>`;
 
+  // Рендерим по группам должностей
   Object.entries(byPosition).forEach(([position, emps]) => {
+    // Строка-заголовок должности
     html+=`<tr><td colspan="${days+1}" style="background:var(--bg4);color:var(--red);font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:8px 12px;text-align:left">${position}</td></tr>`;
+
     emps.sort().forEach(emp => {
-      const empData = filteredData[emp] || {};
+      const empData = monthData[emp] || {};
       const totalH = Object.values(empData).reduce((s,c)=>s+(c?.hours||0),0);
       html+=`<tr><td>${emp}<div style="font-size:10px;color:var(--text3);font-weight:400;margin-top:2px">${totalH>0?Math.round(totalH*10)/10+'ч':''}</div></td>`;
       for(let d=1;d<=days;d++) {
@@ -2538,11 +2558,6 @@ function renderScheduleTable() {
 
   html+=`</tbody></table>`;
   document.getElementById('schedule-table-wrap').innerHTML=html;
-}
-
-function setDept(dept) {
-  activeDept = dept;
-  renderScheduleTable();
 }
 
 // ============================================================
@@ -2832,34 +2847,46 @@ function deleteUser(id) {
 }
 
 // ============================================================
-// ADMIN — EXCEL UPLOAD
+// ADMIN — EXCEL UPLOAD  (v3 — multi-sheet, dual-format parser)
 // ============================================================
 function handleExcelUpload(input) {
-  const file = input.files[0]; if (!file) return;
+  const file = input.files[0];
+  if (!file) return;
   const statusEl = document.getElementById('upload-status');
-  statusEl.textContent = 'Читаем файл...';
+  statusEl.textContent = '⏳ Читаем файл...';
+
+  const forceMonth = parseInt(document.getElementById('upload-month-sel')?.value) || 0;
+  const forceYear  = parseInt(document.getElementById('upload-year-sel')?.value)  || 0;
+
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const wb = XLSX.read(e.target.result, {type:'binary', cellDates:false, raw:false});
-      let totalEmp = 0, detectedMk = '';
-      // Читаем ВСЕ листы файла
-      for (const sheetName of wb.SheetNames) {
-        const ws = wb.Sheets[sheetName];
-        const dataRaw = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
-        const dataTxt = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
-        const result = parseScheduleBlackFox(dataRaw, dataTxt, sheetName);
-        if (result) { totalEmp += result.empCount; detectedMk = result.mk; }
-      }
-      if (detectedMk) {
-        const [y, m] = detectedMk.split('-').map(Number);
-        statusEl.textContent = `✅ Загружено: ${months[m-1]} ${y}, ${totalEmp} сотр. (${wb.SheetNames.length} листов)`;
-        showToast(`✅ График загружен: ${totalEmp} сотрудников из ${wb.SheetNames.length} отделов`, 'success');
-        renderScheduleTable();
-        renderAdminUsers();
-      }
+      const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: false, raw: false });
+      let totalEmp = 0;
+      const lines  = [];
+
+      wb.SheetNames.forEach(sheetName => {
+        const dept = detectDeptByName(sheetName);
+        const ws   = wb.Sheets[sheetName];
+        if (!ws) return;
+        const dataTxt = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:false });
+        const count   = parseSheetBF(dataTxt, dept, sheetName, forceMonth, forceYear);
+        if (count >= 0) {
+          totalEmp += count;
+          const deptLabel = { hall:'Зал', bar:'Бар', kitchen:'Кухня', unknown:'?' }[dept] || dept;
+          lines.push(`✅ ${sheetName} (${deptLabel}): ${count} сотр.`);
+        } else {
+          lines.push(`⚠️ ${sheetName}: не распознан`);
+        }
+      });
+
+      saveDB();
+      renderScheduleTable();
+      renderAdminUsers();
+      statusEl.innerHTML = lines.join('<br>') + `<br><b>Итого: ${totalEmp} сотрудников</b>`;
+      showToast('✅ График загружен: ' + totalEmp + ' сотрудников', 'success');
     } catch(err) {
-      statusEl.textContent = 'Ошибка: ' + err.message;
+      statusEl.textContent = '❌ Ошибка: ' + err.message;
       console.error(err);
       showToast('Ошибка загрузки', 'error');
     }
@@ -2867,217 +2894,258 @@ function handleExcelUpload(input) {
   reader.readAsBinaryString(file);
 }
 
-// ── ПАРСЕР ГРАФИКА BLACK FOX ─────────────────────────────────
-// Стратегия: используем строку с ДНЯМИ НЕДЕЛИ (вс/пн/вт/ср/чт/пт/сб)
-// и вычисляем даты математически от первого числа месяца.
-// Это полностью исключает проблему смещения дат Excel.
-function parseScheduleBlackFox(dataRaw, dataTxt, sheetName) {
+// ── UNIVERSAL SHEET PARSER ────────────────────────────────────
+// Handles two Excel layouts seen in Black Fox:
+//   A) "Зал / Кухня" — row with вс/пн/вт/ср/чт/пт/сб as day-of-week markers
+//   B) "Бар"         — row with date labels like "15.мар", "16.мар" etc.
+// Both have employee names in col 0 (Фамилия Имя),
+// section headers in ALL-CAPS (ШЕФ-ПОВАР, БАРМЕН…),
+// and an optional "Часы" row right below each employee row.
+function parseSheetBF(rawData, dept, sheetName, forceMonth, forceYear) {
   const statusEl = document.getElementById('upload-status');
-  statusEl.textContent = `Анализируем лист: ${sheetName || ''}...`;
 
-  // dataTxt — всё как строки (для имён, времён, заголовков)
-  // dataRaw — числа как числа (для точного определения дат если нужно)
-  const data = dataTxt.map(row => (row||[]).map(c => (c===null||c===undefined)?'':c.toString().trim()));
+  // Normalise every cell to a trimmed string
+  const data = rawData.map(row => (row || []).map(c => (c == null ? '' : c.toString().trim())));
 
-  // ── 1. Год и месяц из заголовка ─────────────────────────────
-  let year = new Date().getFullYear();
-  let month = new Date().getMonth() + 1;
-  const MONTH_RU = [
-    ['январ','янв'],['феврал','фев'],['март','мар'],['апрел','апр'],
-    ['май','май'],['июн','июн'],['июл','июл'],['август','авг'],
-    ['сентябр','сен'],['октябр','окт'],['ноябр','ноя'],['декабр','дек']
-  ];
-  for (let r = 0; r < Math.min(5, data.length); r++) {
-    const line = data[r].join(' ').toLowerCase();
-    MONTH_RU.forEach((aliases, i) => {
-      if (aliases.some(a => line.includes(a))) month = i + 1;
-    });
-    const ym = line.match(/20(\d{2})/);
-    if (ym) year = parseInt('20' + ym[1]);
-  }
-  console.log(`Месяц из заголовка: ${month}/${year}`);
+  // ── 1. Extract year + month from the first 6 rows ──────────
+  let year  = forceYear  || new Date().getFullYear();
+  let month = forceMonth || (new Date().getMonth() + 1);
 
-  // ── 2. Ищем строку с ДНЯМИ НЕДЕЛИ ────────────────────────────
-  // "вс","пн","вт","ср","чт","пт","сб" — это якорные значения
-  const DOW_RU = ['вс','пн','вт','ср','чт','пт','сб']; // 0=вс,1=пн...6=сб
-  // Индекс дня в неделе: вс=0,пн=1,вт=2,ср=3,чт=4,пт=5,сб=6
-  const DOW_IDX = {'вс':0,'вск':0,'пн':1,'пон':1,'вт':2,'вто':2,
-                   'ср':3,'сре':3,'чт':4,'чет':4,'пт':5,'пят':5,'сб':6,'суб':6};
+  const MONTH_MAP = {
+    'январ':1,'янв':1,'феврал':2,'фев':2,'март':3,'мар':3,'апрел':4,'апр':4,
+    'май':5,'июн':6,'июл':7,'август':8,'авг':8,'сентябр':9,'сен':9,
+    'октябр':10,'окт':10,'ноябр':11,'ноя':11,'декабр':12,'дек':12
+  };
 
-  let dowRowIdx = -1;
-  let colToDow = {}; // colIndex -> dayOfWeek (0=вс..6=сб)
-
-  for (let r = 0; r < Math.min(10, data.length); r++) {
-    const row = data[r];
-    const tmp = {};
-    let cnt = 0;
-    for (let ci = 1; ci < row.length; ci++) {
-      const val = row[ci].toLowerCase().trim();
-      if (DOW_IDX[val] !== undefined) { tmp[ci] = DOW_IDX[val]; cnt++; }
-    }
-    if (cnt > Object.keys(colToDow).length && cnt >= 5) {
-      colToDow = tmp;
-      dowRowIdx = r;
+  if (!forceMonth || !forceYear) {
+    for (let r = 0; r < Math.min(6, data.length); r++) {
+      const line = data[r].join(' ').toLowerCase();
+      for (const [kw, mo] of Object.entries(MONTH_MAP)) {
+        if (!forceMonth && line.includes(kw)) month = mo;
+      }
+      const ym = line.match(/20(\d{2})/);
+      if (!forceYear && ym) year = parseInt('20' + ym[1]);
     }
   }
 
-  if (dowRowIdx < 0) {
-    console.warn(`[${sheetName}] Не найдена строка с днями недели`);
-    return null;
-  }
-  console.log(`Строка дней недели: ${dowRowIdx}, найдено: ${Object.keys(colToDow).length} дней`);
-
-  // ── 3. Вычисляем дату для каждой колонки ─────────────────────
-  // Зная день недели колонки и месяц/год — находим дату математически
-  // Первый день месяца
-  const firstDow = new Date(year, month-1, 1).getDay(); // 0=вс
   const daysInM = new Date(year, month, 0).getDate();
+  const mk = `${year}-${String(month).padStart(2,'0')}`;
 
-  // Для каждой колонки с днём недели — найдём её дату
-  // Колонки идут по порядку слева направо, каждые 7 колонок = новая неделя
-  // Порядок: находим дату первого вхождения каждого дня недели
-  const colToDay = {}; // colIndex -> dayNumber (1..28/31)
+  // ── 2. Detect header row — DOW format or DATE format ───────
+  // DOW format: cells contain вс/пн/вт/ср/чт/пт/сб
+  // DATE format: cells contain "1.мар", "01 мар", "01.03" etc.
+  const DOW_IDX = {
+    'вс':0,'вск':0,'пн':1,'пон':1,'вт':2,'вто':2,
+    'ср':3,'сре':3,'чт':4,'чет':4,'пт':5,'пят':5,'сб':6,'суб':6
+  };
 
-  // Сортируем колонки по индексу
-  const sortedCols = Object.keys(colToDow).map(Number).sort((a,b) => a-b);
+  const parseDateLabel = (s, yr, mo) => {
+    if (!s) return 0;
+    s = s.toLowerCase().replace(/\s+/g, '');
+    // "1.мар", "01мар", "01.03", "1мар"
+    const m1 = s.match(/^(\d{1,2})[.\-\/]?([а-яё]{3,})/);
+    if (m1) {
+      const d = parseInt(m1[1]);
+      // verify month matches (optional)
+      if (d >= 1 && d <= 31) return d;
+    }
+    const m2 = s.match(/^(\d{1,2})[.\-\/](\d{1,2})/);
+    if (m2) {
+      const d = parseInt(m2[1]);
+      if (d >= 1 && d <= 31) return d;
+    }
+    const m3 = s.match(/^(\d{1,2})$/);
+    if (m3) {
+      const d = parseInt(m3[1]);
+      if (d >= 1 && d <= 31) return d;
+    }
+    return 0;
+  };
 
-  // Определяем дату первой колонки:
-  // Первая колонка имеет определённый день недели.
-  // День 1 месяца = firstDow. Первая колонка = dowOfFirstCol.
-  const firstColDow = colToDow[sortedCols[0]]; // день недели первой колонки
-  // Первая дата = 1 + ((firstColDow - firstDow + 7) % 7)
-  // Но если firstColDow < firstDow — это та же неделя что и 1-е
-  let firstDate = 1 + ((firstColDow - firstDow + 7) % 7);
-  // Если получается > 7 — значит это первое вхождение этого дня в месяце
-  // но начинается с первой недели содержащей 1-е число
-  // Проверяем: может быть firstColDow совпадает с firstDow или раньше него в неделе
-  // Тогда первая дата может быть <= 0 (предыдущий месяц) — такого нет в нашем файле
-  // Поэтому firstDate всегда 1..7
+  let headerRowIdx = -1;
+  let colToDay     = {}; // colIndex → dayNumber (1..31)
+  let headerFormat = '';  // 'dow' | 'date'
 
-  console.log(`firstDow=${firstDow}(${DOW_RU[firstDow]}), firstColDow=${firstColDow}(${DOW_RU[firstColDow]}), firstDate=${firstDate}`);
+  for (let r = 0; r < Math.min(12, data.length); r++) {
+    const row = data[r];
 
-  // Теперь идём по отсортированным колонкам и назначаем даты
-  let currentDate = firstDate;
-  let prevDow = -1;
-
-  for (const ci of sortedCols) {
-    const dow = colToDow[ci];
-    if (prevDow >= 0) {
-      // Переход к следующей дате
-      if (dow > prevDow) {
-        currentDate += (dow - prevDow);
-      } else {
-        // Новая неделя (dow <= prevDow)
-        currentDate += (7 - prevDow + dow);
+    // Try DOW format
+    const tmpDow = {};
+    let dowCnt = 0;
+    for (let ci = 1; ci < row.length; ci++) {
+      const v = row[ci].toLowerCase();
+      if (DOW_IDX[v] !== undefined) { tmpDow[ci] = DOW_IDX[v]; dowCnt++; }
+    }
+    if (dowCnt >= 5 && dowCnt > Object.keys(colToDay).length) {
+      // Convert DOW → actual date numbers
+      const tmpDay = {};
+      const firstDow = new Date(year, month-1, 1).getDay();
+      const sorted = Object.keys(tmpDow).map(Number).sort((a,b)=>a-b);
+      let curDate = -1, prevDow = -1;
+      for (const ci of sorted) {
+        const dow = tmpDow[ci];
+        if (prevDow < 0) {
+          curDate = 1 + ((dow - firstDow + 7) % 7);
+        } else {
+          curDate += (dow > prevDow) ? (dow - prevDow) : (7 - prevDow + dow);
+        }
+        prevDow = dow;
+        if (curDate >= 1 && curDate <= daysInM) tmpDay[ci] = curDate;
+      }
+      if (Object.keys(tmpDay).length >= 5) {
+        colToDay     = tmpDay;
+        headerRowIdx = r;
+        headerFormat = 'dow';
       }
     }
-    prevDow = dow;
-    if (currentDate >= 1 && currentDate <= daysInM) {
-      colToDay[ci] = currentDate;
+
+    // Try DATE format
+    const tmpDate = {};
+    let dateCnt = 0;
+    for (let ci = 1; ci < row.length; ci++) {
+      const d = parseDateLabel(row[ci], year, month);
+      if (d >= 1 && d <= daysInM) { tmpDate[ci] = d; dateCnt++; }
+    }
+    if (dateCnt >= 5 && dateCnt > Object.keys(colToDay).length) {
+      colToDay     = tmpDate;
+      headerRowIdx = r;
+      headerFormat = 'date';
     }
   }
 
-  console.log('colToDay sample:', Object.entries(colToDay).slice(0,7).map(([c,d])=>`col${c}→${d}(${DOW_RU[new Date(year,month-1,d).getDay()]})`).join(', '));
-
-  if (Object.keys(colToDay).length < 5) {
-    console.warn(`[${sheetName}] Не удалось вычислить даты`);
-    return null;
+  if (headerRowIdx < 0 || Object.keys(colToDay).length < 5) {
+    console.warn(`[${sheetName}] header not found`);
+    return -1;
   }
 
-  // ── 4. Парсим сотрудников ─────────────────────────────────────
-  const mk = `${year}-${String(month).padStart(2,'0')}`;
-  // АРХИВ: не затираем старые данные — только добавляем/обновляем
+  console.log(`[${sheetName}] format=${headerFormat} month=${month}/${year} days=${Object.keys(colToDay).length}`);
+
+  // ── 3. Parse employees ─────────────────────────────────────
   if (!DB.schedule[mk]) DB.schedule[mk] = {};
 
-  const isPositionHeader = (s) => {
-    if (!s || s.length < 2) return false;
-    const t = s.trim();
-    return /^[А-ЯЁA-Z][А-ЯЁA-Z\s\-\/]+$/.test(t) && t.length > 2;
+  const colKeys = Object.keys(colToDay).map(Number);
+
+  // Helper: is this cell a section header (ALL-CAPS Russian, no spaces or 1–3 words)
+  const isSectionHeader = s => {
+    if (!s || s.length < 3) return false;
+    // Убираем цифры/спецсимволы для проверки
+    const letters = s.replace(/[^а-яёА-ЯЁa-zA-Z\s\-\/]/g,'').trim();
+    if (!letters) return false;
+    // Должны быть все заглавные буквы (кириллица или латиница)
+    return /^[А-ЯЁA-Z][А-ЯЁA-Z\s\-\/\.]+$/.test(letters) && letters.length >= 3;
   };
 
-  const parseShiftTime = (s) => {
+  // Helper: parse shift time from a cell value
+  const parseTime = s => {
     if (!s) return null;
     s = s.toString().trim();
-    if (!s || /^(вых|чева|масленица|выходной|праздник|-)$/i.test(s)) return null;
-    const m1 = s.match(/^(\d{1,2}:\d{2})[-–—](\d{1,2})(:\d{2})?$/);
-    if (m1) {
-      const start = m1[1].padStart(5,'0');
-      const end = m1[2].padStart(2,'0') + ':' + (m1[3] ? m1[3].slice(1) : '00');
-      return { start, end };
-    }
-    const m2 = s.match(/^(\d{1,2}:\d{2})[-–—](\d{1,2}:\d{2})$/);
-    if (m2) return { start: m2[1].padStart(5,'0'), end: m2[2].padStart(5,'0') };
+    // Skip known non-shift labels
+    if (/^(вых|чева|выходной|праздник|отпуск|ревизия|больн|подмен|замена|с\s|\-)$/i.test(s)) return null;
+    if (s === '-' || s === '—' || s.length < 4) return null;
+
+    // Normalise dashes
+    s = s.replace(/[–—]/g, '-');
+
+    // "HH:MM-HH:MM" or "H:MM-H:MM"
+    const m1 = s.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+    if (m1) return { start: m1[1].padStart(5,'0'), end: m1[2].padStart(5,'0') };
+
+    // "HH:MM-HH" (end has no minutes)
+    const m2 = s.match(/^(\d{1,2}:\d{2})-(\d{1,2})$/);
+    if (m2) return { start: m2[1].padStart(5,'0'), end: m2[2].padStart(2,'0') + ':00' };
+
+    // "HH-HH:MM" or "H-HH:MM"
+    const m3 = s.match(/^(\d{1,2})-(\d{1,2}:\d{2})$/);
+    if (m3) return { start: m3[1].padStart(2,'0') + ':00', end: m3[2].padStart(5,'0') };
+
+    // "HH:MM\nHH:MM" (two lines in one cell)
+    const m4 = s.match(/^(\d{1,2}:\d{2})[\n\r]+(\d{1,2}:\d{2})$/);
+    if (m4) return { start: m4[1].padStart(5,'0'), end: m4[2].padStart(5,'0') };
+
     return null;
   };
 
-  // Должность может быть в строке dowRowIdx (col0) — берём её сразу
-  let currentPosition = (data[dowRowIdx]?.[0] || '').trim() || '';
-  let empCount = 0;
-  const colKeys = Object.keys(colToDay).map(Number);
-
-  // Улучшенная проверка заголовка должности:
-  // Заголовок = нет смен в строке И нет пробела (одно слово заглавными) ИЛИ известные паттерны должностей
-  const isPositionRow = (row, col0) => {
-    if (!col0) return false;
-    // Есть смены в строке — это точно не заголовок
-    if (colKeys.some(ci => parseShiftTime(row[ci]) !== null)) return false;
-    // Числа (телефон) — не должность
-    if (/^\d{7,}$/.test(col0)) return false;
-    // Строка "Часы" и похожие — пропускаем
-    if (/^часы/i.test(col0)) return false;
-    // Известные заголовки должностей
-    if (/^(старший|бармен|официант|администрат|управляющ|шеф|повар|су.шеф|клининг|вызывн|горячий|холодный|раздача)/i.test(col0)) return true;
-    // Только заглавные буквы — заголовок
-    if (/^[А-ЯЁA-Z][А-ЯЁA-Z\s\-\/]+$/.test(col0) && col0.length > 2) return true;
-    return false;
+  // Helper: try to read numeric hours from a cell
+  const parseHours = s => {
+    if (!s) return 0;
+    const n = parseFloat(s.toString().replace(',','.'));
+    return (!isNaN(n) && n > 0 && n <= 24) ? n : 0;
   };
 
-  for (let r = dowRowIdx + 1; r < data.length; r++) {
+  let currentPosition = '';
+  let empCount = 0;
+
+  for (let r = headerRowIdx + 1; r < data.length; r++) {
     const row = data[r] || [];
     if (row.every(c => !c)) continue;
 
-    const col0 = (row[0] || '').trim();
+    const col0 = row[0] || '';
     if (!col0) continue;
-    // Пропускаем технические строки
-    if (/^(итого|сумм|ревизия)/i.test(col0)) continue;
-    // Пропускаем телефонные номера
-    if (/^\d{7,}$/.test(col0)) continue;
-    // Пропускаем строки с часами
-    if (/^часы/i.test(col0)) continue;
 
-    // Это заголовок должности?
-    if (isPositionRow(row, col0)) { currentPosition = col0; continue; }
+    // Skip footer/totals rows
+    if (/ответственн|составл|директор|итого/i.test(col0)) continue;
 
-    const hasShift = colKeys.some(ci => parseShiftTime(row[ci]) !== null);
+    // Section header (position group)
+    if (isSectionHeader(col0)) {
+      currentPosition = col0.trim();
+      continue;
+    }
+
+    // "Часы" sub-row — already handled by look-ahead below
+    if (/^часы$/i.test(col0)) continue;
+
+    // Skip rows that have no name (no space = likely a code/phone/misc)
+    if (!col0.includes(' ') && col0.length < 20) {
+      // Could be a phone number row — skip
+      if (/^[\d\+\-\s\(\)]{6,}$/.test(col0)) continue;
+    }
+
+    // Check if this row has at least one valid shift cell
+    const hasShift = colKeys.some(ci => parseTime(row[ci]) !== null);
     if (!hasShift) continue;
 
-    const empName = col0;
-    DB.schedule[mk][empName] = {};
-    empCount++;
+    // Look-ahead: next non-empty row — if col0 is empty or is "Часы" → it's a hours-row
+    let hoursRow = null;
+    for (let rr = r + 1; rr < Math.min(r + 4, data.length); rr++) {
+      const nr = data[rr] || [];
+      const nc0 = (nr[0] || '').trim();
+      if (!nc0 || /^часы$/i.test(nc0)) {
+        hoursRow = nr;
+        break;
+      }
+      break; // non-empty col0 that's not "Часы" → stop
+    }
 
-    // Строка с часами под именем
-    const nextRow = data[r+1] || [];
-    const nextCol0 = (nextRow[0]||'').trim();
-    const isHoursRow = !nextCol0 || (!nextCol0.includes(' ') && !isPositionHeader(nextCol0));
+    const empName = col0.trim();
+
+    // Init employee schedule for this month (merge, don't overwrite)
+    if (!DB.schedule[mk][empName]) DB.schedule[mk][empName] = {};
+    empCount++;
 
     for (const ci of colKeys) {
       const dayNum = colToDay[ci];
       if (!dayNum) continue;
-      const t = parseShiftTime(row[ci]);
+      const t = parseTime(row[ci]);
       if (!t) continue;
 
       let hours = calcHoursVal(t.start, t.end);
-      if (isHoursRow && nextRow[ci]) {
-        const hNum = parseFloat(nextRow[ci].toString().replace(',','.'));
-        if (!isNaN(hNum) && hNum > 0 && hNum <= 24) hours = hNum;
+
+      // Try to get hours from the hours-row
+      if (hoursRow && hoursRow[ci]) {
+        const h = parseHours(hoursRow[ci]);
+        if (h > 0) hours = h;
       }
 
       DB.schedule[mk][empName][dayNum] = {
-        start: t.start, end: t.end, hours, position: currentPosition,
-        dept: (sheetName || '').trim()
+        start: t.start,
+        end:   t.end,
+        hours,
+        position: currentPosition,
+        dept
       };
     }
 
+    // Add/update user record
     if (!DB.users.find(u => u && u.name === empName)) {
       DB.users.push({
         id: 'u_' + empName.replace(/\s+/g,'_').toLowerCase() + '_' + Date.now(),
@@ -3090,19 +3158,116 @@ function parseScheduleBlackFox(dataRaw, dataTxt, sheetName) {
     }
   }
 
-  saveDB();
-  const loaded = Object.keys(colToDay).length;
-  console.log(`[${sheetName}] Загружено: ${empCount} сотр., ${loaded} дней, mk=${mk}`);
-  return { empCount, mk };
+  return empCount;
 }
 
-function exportSchedule() {
-  const json=JSON.stringify(DB.schedule,null,2);
-  const blob=new Blob([json],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='blackfox_schedule.json';
-  a.click();
+// ── PDF EXPORT ────────────────────────────────────────────────
+function exportCurrentSchedulePDF() {
+  const y  = scheduleMonth.getFullYear();
+  const m  = scheduleMonth.getMonth() + 1;
+  const mk = `${y}-${String(m).padStart(2,'0')}`;
+  const rawData = DB.schedule[mk];
+
+  if (!rawData || !Object.keys(rawData).length) {
+    showToast('Нет данных для экспорта', 'error'); return;
+  }
+
+  const deptLabel = { all:'Все подразделения', hall:'Зал', bar:'Бар', kitchen:'Кухня' }[currentDept] || 'Все';
+  const title = `Black Fox — ${deptLabel} — ${months[m-1]} ${y}`;
+  const days  = new Date(y, m, 0).getDate();
+  const DOW   = ['вс','пн','вт','ср','чт','пт','сб'];
+
+  let dispData = rawData;
+  if (currentDept !== 'all') {
+    dispData = {};
+    Object.entries(rawData).forEach(([emp, ed]) => {
+      const d = Object.values(ed).find(x => x && x.dept)?.dept;
+      if (d === currentDept) dispData[emp] = ed;
+    });
+  }
+
+  const byPos = {};
+  Object.entries(dispData).forEach(([emp, ed]) => {
+    let pos = 'Прочие';
+    for (const d of Object.values(ed)) { if (d && d.position) { pos = d.position; break; } }
+    if (!byPos[pos]) byPos[pos] = [];
+    byPos[pos].push(emp);
+  });
+
+  let thead = `<tr><th>Сотрудник</th>`;
+  for (let d = 1; d <= days; d++) {
+    const dow = DOW[new Date(y, m-1, d).getDay()];
+    const we  = dow==='сб'||dow==='вс';
+    thead += `<th style="${we?'color:#c00':''}">${d}<br><small>${dow}</small></th>`;
+  }
+  thead += '</tr>';
+
+  let tbody = '';
+  Object.entries(byPos).forEach(([pos, emps]) => {
+    tbody += `<tr><td colspan="${days+1}" class="pos-hdr">${pos}</td></tr>`;
+    emps.sort().forEach(emp => {
+      const ed  = dispData[emp] || {};
+      const tot = Object.values(ed).reduce((s,c)=>s+(c?.hours||0),0);
+      tbody += `<tr><td class="emp-name">${emp}<br><small>${tot>0?Math.round(tot*10)/10+'ч':''}</small></td>`;
+      for (let d = 1; d <= days; d++) {
+        const cell = ed[d];
+        if (cell && cell.start) {
+          tbody += `<td><span class="t">${cell.start.slice(0,5)}</span><br><span class="e">${cell.end?cell.end.slice(0,5):''}</span><br><span class="h">${cell.hours?Math.round(cell.hours*10)/10+'ч':''}</span></td>`;
+        } else {
+          tbody += `<td class="off">—</td>`;
+        }
+      }
+      tbody += '</tr>';
+    });
+  });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:0;padding:12px;font-size:10px;background:#fff;color:#111}
+  h2{font-size:14px;font-weight:900;color:#c00;margin:0 0 10px}
+  table{border-collapse:collapse;width:100%}
+  th,td{border:1px solid #ccc;padding:3px 2px;text-align:center;vertical-align:top}
+  th{background:#f0f0f0;font-weight:700;font-size:9px}
+  td.emp-name{text-align:left;padding-left:6px;background:#fafafa;min-width:100px;white-space:nowrap}
+  td.emp-name small{color:#888;font-size:8px}
+  td.off{color:#ccc}
+  td.pos-hdr{background:#1a1a1a!important;color:#e8212a!important;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.8px;text-align:left;padding-left:8px}
+  span.t{color:#c00;font-weight:700;font-size:9px}
+  span.e{color:#666;font-size:8px}
+  span.h{color:#999;font-size:8px}
+  @media print{@page{size:A3 landscape;margin:8mm}body{padding:0}}
+</style></head><body>
+<h2>${title}</h2>
+<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+<script>setTimeout(()=>window.print(),400)<\/script>
+</body></html>`;
+
+  const w = window.open('','_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else showToast('Разрешите всплывающие окна в браузере', 'error');
+}
+
+// ── CLEAR MONTH ──────────────────────────────────────────────
+function clearMonthSchedule() {
+  const monthSel = document.getElementById('upload-month-sel');
+  const yearSel  = document.getElementById('upload-year-sel');
+  const mo = parseInt(monthSel?.value) || (new Date().getMonth() + 1);
+  const yr = parseInt(yearSel?.value)  || new Date().getFullYear();
+  const mk = `${yr}-${String(mo).padStart(2,'0')}`;
+  const monthName = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+    'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'][mo-1];
+
+  if (!confirm(`Удалить весь график за ${monthName} ${yr}?
+
+Это действие необратимо.`)) return;
+
+  delete DB.schedule[mk];
+  saveDB();
+  renderScheduleTable();
+
+  const statusEl = document.getElementById('upload-status');
+  if (statusEl) statusEl.textContent = `🗑 График за ${monthName} ${yr} очищен`;
+  showToast(`🗑 График за ${monthName} ${yr} удалён`, 'success');
 }
 
 // ============================================================

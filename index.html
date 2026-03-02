@@ -4043,7 +4043,7 @@ function renderAdminSalaryOverview(containerEl, mk) {
       <th style="text-align:left;padding:8px 6px;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Сотрудник</th>
       <th style="text-align:center;padding:8px 6px;color:var(--text3);font-size:11px">Смен</th>
       <th style="text-align:center;padding:8px 6px;color:var(--text3);font-size:11px">Часов</th>
-      <th style="text-align:center;padding:8px 6px;color:var(--text3);font-size:11px">Ставка</th>
+      <th style="text-align:center;padding:8px 6px;color:var(--text3);font-size:11px">Ставка 👆</th>
       <th style="text-align:right;padding:8px 6px;color:var(--text3);font-size:11px">К выплате</th>
     </tr></thead><tbody>`;
 
@@ -4072,6 +4072,9 @@ function renderAdminSalaryOverview(containerEl, mk) {
   empStats.sort((a,b) => b.payout - a.payout);
 
   empStats.forEach(({ name, shifts, hours, rate, rateType, payout, pos }) => {
+    const rateDisplay = rate
+      ? `<span style="font-weight:700;color:var(--text)">${rate}</span> <span style="font-size:10px;color:var(--text3)">₽/${rateType==='shift'?'см':'ч'}</span>`
+      : `<span style="color:var(--red);font-size:11px;font-weight:700">+ задать</span>`;
     html += `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 6px">
         <div style="font-weight:700">${name}</div>
@@ -4079,7 +4082,9 @@ function renderAdminSalaryOverview(containerEl, mk) {
       </td>
       <td style="text-align:center;padding:10px 6px;font-weight:600">${shifts}</td>
       <td style="text-align:center;padding:10px 6px;font-weight:600">${hours.toFixed(1)}</td>
-      <td style="text-align:center;padding:10px 6px;color:var(--text3);font-size:12px">${rate ? rate+'₽/'+(rateType==='shift'?'см':'ч') : '—'}</td>
+      <td style="text-align:center;padding:10px 6px;cursor:pointer" onclick="inlineEditRate('${name}','${rateType||'hourly'}',${rate||0},'${mk}')" title="Нажмите чтобы изменить ставку">
+        ${rateDisplay}
+      </td>
       <td style="text-align:right;padding:10px 6px;font-weight:800;color:${payout>0?'#4caf50':'var(--text3)'}">
         ${payout>0?payout.toLocaleString('ru')+' ₽':'—'}
       </td>
@@ -4092,6 +4097,98 @@ function renderAdminSalaryOverview(containerEl, mk) {
   </tr></tfoot></table></div>`;
 
   containerEl.innerHTML = html;
+}
+
+
+// ── INLINE RATE EDITOR (in FOT table) ───────────────────────
+function inlineEditRate(empName, currentRateType, currentRate, mk) {
+  // Build a small inline modal
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+
+  overlay.innerHTML = `
+    <div style="background:var(--bg2);border-radius:var(--radius);padding:24px;width:100%;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+      <div style="font-size:16px;font-weight:800;margin-bottom:4px">${empName}</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Задать почасовую ставку</div>
+
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button id="irt-hourly" onclick="iртSetType('hourly')" style="flex:1;padding:10px;border-radius:30px;border:1.5px solid;font-family:Manrope,sans-serif;font-size:13px;font-weight:700;cursor:pointer;background:var(--red);border-color:var(--red);color:#fff">₽ / час</button>
+        <button id="irt-shift"  onclick="iртSetType('shift')"  style="flex:1;padding:10px;border-radius:30px;border:1.5px solid var(--border);font-family:Manrope,sans-serif;font-size:13px;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text2)">₽ / смена</button>
+      </div>
+
+      <input id="irt-input" type="number" value="${currentRate||''}" placeholder="Например: 250" min="0" step="50"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 16px;color:var(--text);font-family:Manrope,sans-serif;font-size:20px;font-weight:800;outline:none;box-sizing:border-box;margin-bottom:8px">
+
+      <div id="irt-preview" style="text-align:center;font-size:13px;color:var(--text3);margin-bottom:16px;min-height:20px"></div>
+
+      <div style="display:flex;gap:8px">
+        <button onclick="iртSave('${empName}','${mk}')" style="flex:2;background:var(--red);color:#fff;border:none;border-radius:30px;padding:13px;font-family:Manrope,sans-serif;font-size:14px;font-weight:800;cursor:pointer">💾 Сохранить</button>
+        <button onclick="this.closest('[style*=fixed]').remove()" style="flex:1;background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:30px;padding:13px;font-family:Manrope,sans-serif;font-size:14px;font-weight:700;cursor:pointer">Отмена</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target===overlay) overlay.remove(); });
+
+  // Init type
+  window._irtType = currentRateType || 'hourly';
+  iртSetType(window._irtType);
+
+  // Calc hours/shifts for preview
+  const monthData = DB.schedule[mk] || {};
+  const empDays   = monthData[empName] || {};
+  const [yr, mo]  = mk.split('-').map(Number);
+  const daysInM   = new Date(yr, mo, 0).getDate();
+  let totalHours = 0, shiftsCount = 0;
+  for (let d = 1; d <= daysInM; d++) {
+    if (empDays[d]?.start) { shiftsCount++; totalHours += empDays[d].hours || 0; }
+  }
+  window._irtHours  = totalHours;
+  window._irtShifts = shiftsCount;
+
+  const input = document.getElementById('irt-input');
+  input.oninput = iртPreview;
+  iртPreview();
+  setTimeout(() => input.focus(), 50);
+}
+
+function iртSetType(type) {
+  window._irtType = type;
+  const hBtn = document.getElementById('irt-hourly');
+  const sBtn = document.getElementById('irt-shift');
+  if (!hBtn || !sBtn) return;
+  const activeStyle = 'flex:1;padding:10px;border-radius:30px;border:1.5px solid;font-family:Manrope,sans-serif;font-size:13px;font-weight:700;cursor:pointer;background:var(--red);border-color:var(--red);color:#fff';
+  const inactiveStyle = 'flex:1;padding:10px;border-radius:30px;border:1.5px solid var(--border);font-family:Manrope,sans-serif;font-size:13px;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text2)';
+  hBtn.style.cssText = (type==='hourly' ? activeStyle : inactiveStyle);
+  sBtn.style.cssText = (type==='shift'  ? activeStyle : inactiveStyle);
+  iртPreview();
+}
+
+function iртPreview() {
+  const rate = parseFloat(document.getElementById('irt-input')?.value) || 0;
+  const type = window._irtType;
+  const payout = rate > 0
+    ? Math.round(type==='shift' ? rate * (window._irtShifts||0) : rate * (window._irtHours||0))
+    : 0;
+  const el = document.getElementById('irt-preview');
+  if (el) el.textContent = payout > 0
+    ? '≈ ' + payout.toLocaleString('ru') + ' ₽ за этот месяц'
+    : 'Введите ставку';
+}
+
+function iртSave(empName, mk) {
+  const rate = parseFloat(document.getElementById('irt-input')?.value) || 0;
+  const type = window._irtType;
+  const user = DB.users.find(u => u && u.name === empName);
+  if (!user) { showToast('Пользователь не найден', 'error'); return; }
+  user.rate     = rate;
+  user.rateType = type;
+  saveDB();
+  // Close overlay
+  document.querySelector('[style*="position:fixed"][style*="z-index:9999"]')?.remove();
+  showToast('✅ Ставка сохранена: ' + (rate > 0 ? rate + ' ₽/' + (type==='shift'?'смену':'час') : 'сброшена'), 'success');
+  // Re-render FOT table
+  refreshAdminSalary();
 }
 
 

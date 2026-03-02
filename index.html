@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="/blackfox/manifest.json">
   <meta name="theme-color" content="#e8212a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Black Fox">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
-  <link rel="apple-touch-icon" sizes="144x144" href="icon-144.png">
-  <link rel="apple-touch-icon" sizes="128x128" href="icon-128.png">
+  <link rel="apple-touch-icon" href="/blackfox/icon-192.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/blackfox/icon-152.png">
+  <link rel="apple-touch-icon" sizes="144x144" href="/blackfox/icon-144.png">
+  <link rel="apple-touch-icon" sizes="128x128" href="/blackfox/icon-128.png">
 <title>Black Fox — Учёт смен</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4207,7 +4207,7 @@ function iртSave(empName, mk) {
 // ── PWA SERVICE WORKER ────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/blackfox/sw.js')
       .then(reg => {
         console.log('SW registered:', reg.scope);
         // Check for updates every hour
@@ -4243,7 +4243,7 @@ function showInstallBanner() {
     animation:slideUp .3s ease;
   `;
   banner.innerHTML = `
-    <img src="icon-72.png" style="width:44px;height:44px;border-radius:10px;flex-shrink:0">
+    <img src="/blackfox/icon-72.png" style="width:44px;height:44px;border-radius:10px;flex-shrink:0">
     <div style="flex:1;min-width:0">
       <div style="font-weight:800;font-size:14px">Установить Black Fox</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px">Работает как приложение</div>

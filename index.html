@@ -2083,13 +2083,18 @@ function renderProfileContent(name) {
     <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val">${totalShifts}</div><div class="stat-label">Смен за месяц</div></div>
     <div class="stat-card"><div class="stat-icon">⏱</div><div class="stat-val">${totalHours.toFixed(1)}<span> ч</span></div><div class="stat-label">Отработано часов</div></div>
     <div class="stat-card"><div class="stat-icon">😴</div><div class="stat-val">${offDays}</div><div class="stat-label">Выходных дней</div></div>
-    ${(currentUser.role==='admin'||currentUser.name===name)?`
-    <div class="stat-card" style="cursor:pointer;border-color:${salary>0?'rgba(76,175,80,0.3)':\'var(--border)\'}" onclick="openSalaryModal('${name}')">
-      <div class="stat-icon">💰</div>
-      <div class="stat-val" style="color:${salary>0?'#4caf50':'var(--text2)'}">${salary>0?salary.toLocaleString('ru'):rate>0?'0':'-'}<span style="font-size:13px"> ₽</span></div>
-      <div class="stat-label">Зарплата${rate>0?` · ${rate}${rateType==='shift'?' ₽/см':' ₽/ч'}`:''}</div>
-    </div>`:''
-  }
+    ${(()=>{
+    if(currentUser.role!=='admin'&&currentUser.name!==name) return '';
+    const bc=salary>0?'rgba(76,175,80,0.3)':'var(--border)';
+    const vc=salary>0?'#4caf50':'var(--text2)';
+    const sv=salary>0?salary.toLocaleString('ru'):rate>0?'0':'-';
+    const rl=rate>0?' · '+rate+(rateType==='shift'?' ₽/см':' ₽/ч'):'';
+    return '<div class="stat-card" style="cursor:pointer;border-color:'+bc+'" onclick="openSalaryModal(\''+name+'\')">'
+      +'<div class="stat-icon">💰</div>'
+      +'<div class="stat-val" style="color:'+vc+'">'+sv+'<span style="font-size:13px"> ₽</span></div>'
+      +'<div class="stat-label">Зарплата'+rl+'</div>'
+      +'</div>';
+  })()}}
     <div class="stat-card"><div class="stat-icon">⚡</div><div class="stat-val">${avgHoursPerShift.toFixed(1)}<span> ч</span></div><div class="stat-label">Средняя смена</div></div>
     <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-val">${extraHours.toFixed(1)}<span> ч</span></div><div class="stat-label">Подработки</div></div>
     <div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-val">${allShifts}</div><div class="stat-label">Смен всего</div></div>

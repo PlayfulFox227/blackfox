@@ -1042,6 +1042,17 @@
     <div class="page" id="page-admin">
       <div class="section-title">Админ-панель</div>
 
+      <!-- Salary Overview -->
+      <div class="admin-section">
+        <h3>💰 Фонд оплаты труда</h3>
+        <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center">
+          <select id="salary-month-sel" onchange="refreshAdminSalary()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);font-family:Manrope,sans-serif;font-size:13px;outline:none">
+            <option value="">— выберите месяц —</option>
+          </select>
+        </div>
+        <div id="admin-salary-table"><div style="color:var(--text3);font-size:13px">Выберите месяц</div></div>
+      </div>
+
       <!-- Upload schedule -->
       <div class="admin-section">
         <h3>📤 Загрузка графика</h3>
@@ -1481,7 +1492,7 @@ function subscribeSupabase() {
           if (pid === 'stats') renderStats();
           if (pid === 'inbox') renderInboxContent();
           if (pid === 'accountant') renderAccountantPage();
-          if (pid === 'admin') { renderAdminUsers(); loadAnnouncement(); }
+          if (pid === 'admin') { renderAdminUsers(); loadAnnouncement(); initAdminSalaryMonths(); }
         }
       }
     })
@@ -2037,8 +2048,11 @@ function renderProfileContent(name) {
   }
 
   const user = DB.users.find(u=>u.name===name);
-  const rate = user?.rate || 0;
-  const salary = rate * totalHours;
+  const rate     = user?.rate     || 0;
+  const rateType = user?.rateType || 'hourly'; // 'hourly' | 'shift'
+  const salary   = rate > 0
+    ? (rateType === 'shift' ? rate * shiftsCount : rate * totalHours)
+    : 0;
 
   // Month selector
   let html = '';
@@ -2069,7 +2083,13 @@ function renderProfileContent(name) {
     <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val">${totalShifts}</div><div class="stat-label">Смен за месяц</div></div>
     <div class="stat-card"><div class="stat-icon">⏱</div><div class="stat-val">${totalHours.toFixed(1)}<span> ч</span></div><div class="stat-label">Отработано часов</div></div>
     <div class="stat-card"><div class="stat-icon">😴</div><div class="stat-val">${offDays}</div><div class="stat-label">Выходных дней</div></div>
-    <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-val">${salary>0?salary.toLocaleString('ru'):rate>0?'0':'-'}<span>${salary>0||rate>0?' ₽':''}</span></div><div class="stat-label">Расчёт зарплаты</div></div>
+    ${(currentUser.role==='admin'||currentUser.name===name)?`
+    <div class="stat-card" style="cursor:pointer;border-color:${salary>0?'rgba(76,175,80,0.3)':\'var(--border)\'}" onclick="openSalaryModal('${name}')">
+      <div class="stat-icon">💰</div>
+      <div class="stat-val" style="color:${salary>0?'#4caf50':'var(--text2)'}">${salary>0?salary.toLocaleString('ru'):rate>0?'0':'-'}<span style="font-size:13px"> ₽</span></div>
+      <div class="stat-label">Зарплата${rate>0?` · ${rate}${rateType==='shift'?' ₽/см':' ₽/ч'}`:''}</div>
+    </div>`:''
+  }
     <div class="stat-card"><div class="stat-icon">⚡</div><div class="stat-val">${avgHoursPerShift.toFixed(1)}<span> ч</span></div><div class="stat-label">Средняя смена</div></div>
     <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-val">${extraHours.toFixed(1)}<span> ч</span></div><div class="stat-label">Подработки</div></div>
     <div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-val">${allShifts}</div><div class="stat-label">Смен всего</div></div>
@@ -2718,6 +2738,29 @@ function calcSalary() {
 // ============================================================
 // ADMIN — USERS
 // ============================================================
+function refreshAdminSalary() {
+  const sel = document.getElementById('salary-month-sel');
+  const mk  = sel?.value;
+  const container = document.getElementById('admin-salary-table');
+  if (!mk || !container) return;
+  renderAdminSalaryOverview(container, mk);
+}
+
+function initAdminSalaryMonths() {
+  const sel = document.getElementById('salary-month-sel');
+  if (!sel) return;
+  const mks = Object.keys(DB.schedule || {}).sort().reverse();
+  sel.innerHTML = '<option value="">— выберите месяц —</option>' +
+    mks.map(mk => {
+      const [y, m] = mk.split('-').map(Number);
+      return `<option value="${mk}">${months[m-1]} ${y}</option>`;
+    }).join('');
+  // Auto-select current month if available
+  const cur = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+  if (mks.includes(cur)) { sel.value = cur; refreshAdminSalary(); }
+  else if (mks.length) { sel.value = mks[0]; refreshAdminSalary(); }
+}
+
 function renderAdminUsers() {
   const list = DB.users.filter(u => u.id !== 'admin');
   let html = '';
@@ -3841,8 +3884,230 @@ function initDragScroll(el) {
   });
 }
 
+// ============================================================
+// SALARY / RATE
+// ============================================================
+let salaryModalName = '';
+let salaryModalMonth = null; // {y, m, mk}
+
+function openSalaryModal(empName) {
+  salaryModalName = empName;
+
+  // Determine which month we're viewing in profile
+  const profileMonthBtn = document.querySelector('.ptab.active[onclick*="switchProfileMonth"]');
+  let mk = profileMonthBtn
+    ? profileMonthBtn.getAttribute('onclick').match(/'(\d{4}-\d{2})'/)?.[1]
+    : null;
+  if (!mk) mk = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+
+  const [yr, mo] = mk.split('-').map(Number);
+  salaryModalMonth = { y: yr, m: mo, mk };
+
+  const user     = DB.users.find(u => u && u.name === empName);
+  const rate     = user?.rate     || 0;
+  const rateType = user?.rateType || 'hourly';
+
+  // Calc salary for the month
+  const monthData = DB.schedule[mk] || {};
+  const empDays   = monthData[empName] || {};
+  const days      = new Date(yr, mo, 0).getDate();
+  let totalHours = 0, shiftsCount = 0;
+  for (let d = 1; d <= days; d++) {
+    if (empDays[d]?.start) {
+      shiftsCount++;
+      totalHours += empDays[d].hours || calcHoursVal(empDays[d].start, empDays[d].end);
+    }
+  }
+  const salary = rate > 0
+    ? (rateType === 'shift' ? rate * shiftsCount : rate * totalHours)
+    : 0;
+
+  // Fill modal
+  const monthLabel = `${months[mo-1]} ${yr}`;
+  document.getElementById('salary-modal-name').textContent = empName + ' · ' + monthLabel;
+  document.getElementById('salary-display-amount').textContent =
+    salary > 0 ? salary.toLocaleString('ru') + ' ₽' : '— ₽';
+  document.getElementById('salary-display-detail').textContent =
+    rate > 0
+      ? `${totalHours.toFixed(1)} ч · ${shiftsCount} смен · ${rate} ₽/${rateType==='shift'?'смену':'час'}`
+      : 'Ставка не задана';
+
+  // Rate edit — show for admin or own profile
+  const canEdit = currentUser.role === 'admin' || currentUser.name === empName;
+  document.getElementById('salary-rate-edit').style.display = canEdit ? 'block' : 'none';
+
+  if (canEdit) {
+    document.getElementById('salary-rate-input').value = rate || '';
+    setSalaryRateType(rateType, false);
+  }
+
+  document.getElementById('salary-modal').classList.add('open');
+}
+
+function closeSalaryModal() {
+  document.getElementById('salary-modal').classList.remove('open');
+}
+
+let _salaryRateType = 'hourly';
+function setSalaryRateType(type, update = true) {
+  _salaryRateType = type;
+  document.getElementById('rt-hourly').classList.toggle('active', type === 'hourly');
+  document.getElementById('rt-shift').classList.toggle('active', type === 'shift');
+  document.getElementById('salary-rate-label').textContent =
+    type === 'shift' ? 'Ставка (₽ за смену)' : 'Ставка (₽/час)';
+  if (update) updateSalaryPreview();
+}
+
+function updateSalaryPreview() {
+  if (!salaryModalMonth) return;
+  const { y, m, mk } = salaryModalMonth;
+  const rate     = parseFloat(document.getElementById('salary-rate-input').value) || 0;
+  const rateType = _salaryRateType;
+
+  const monthData = DB.schedule[mk] || {};
+  const empDays   = monthData[salaryModalName] || {};
+  const daysInM   = new Date(y, m, 0).getDate();
+  let totalHours = 0, shiftsCount = 0;
+  for (let d = 1; d <= daysInM; d++) {
+    if (empDays[d]?.start) {
+      shiftsCount++;
+      totalHours += empDays[d].hours || calcHoursVal(empDays[d].start, empDays[d].end);
+    }
+  }
+  const salary = rate > 0
+    ? (rateType === 'shift' ? rate * shiftsCount : rate * totalHours)
+    : 0;
+
+  document.getElementById('salary-display-amount').textContent =
+    salary > 0 ? salary.toLocaleString('ru') + ' ₽' : '— ₽';
+  document.getElementById('salary-display-detail').textContent =
+    rate > 0
+      ? `${totalHours.toFixed(1)} ч · ${shiftsCount} смен · ${rate} ₽/${rateType==='shift'?'смену':'час'}`
+      : 'Ставка не задана';
+}
+
+function saveSalaryRate() {
+  const rate     = parseFloat(document.getElementById('salary-rate-input').value) || 0;
+  const rateType = _salaryRateType;
+  const user     = DB.users.find(u => u && u.name === salaryModalName);
+  if (!user) { showToast('Пользователь не найден', 'error'); return; }
+
+  user.rate     = rate;
+  user.rateType = rateType;
+  saveDB();
+  closeSalaryModal();
+  showToast('✅ Ставка сохранена: ' + (rate > 0 ? rate + ' ₽/' + (rateType==='shift'?'смену':'час') : 'сброшена'), 'success');
+
+  // Re-render profile if open
+  const activePtab = document.querySelector('.ptab.active');
+  if (activePtab && document.getElementById('page-profile')?.classList.contains('active')) {
+    renderProfile();
+  }
+}
+
+// Admin panel: salary overview table (injected into stats or admin)
+function renderAdminSalaryOverview(containerEl, mk) {
+  if (!containerEl) return;
+  const [yr, mo] = mk.split('-').map(Number);
+  const monthData = DB.schedule[mk] || {};
+  const daysInM   = new Date(yr, mo, 0).getDate();
+
+  if (!Object.keys(monthData).length) {
+    containerEl.innerHTML = `<div style="color:var(--text3);font-size:13px">График не загружен</div>`;
+    return;
+  }
+
+  let html = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="border-bottom:2px solid var(--border)">
+      <th style="text-align:left;padding:8px 6px;color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Сотрудник</th>
+      <th style="text-align:center;padding:8px 6px;color:var(--text3);font-size:11px">Смен</th>
+      <th style="text-align:center;padding:8px 6px;color:var(--text3);font-size:11px">Часов</th>
+      <th style="text-align:center;padding:8px 6px;color:var(--text3);font-size:11px">Ставка</th>
+      <th style="text-align:right;padding:8px 6px;color:var(--text3);font-size:11px">К выплате</th>
+    </tr></thead><tbody>`;
+
+  let totalPayout = 0;
+  const empStats = [];
+
+  Object.keys(monthData).forEach(name => {
+    const empDays = monthData[name] || {};
+    let hours = 0, shifts = 0;
+    for (let d = 1; d <= daysInM; d++) {
+      if (empDays[d]?.start) {
+        shifts++;
+        hours += empDays[d].hours || calcHoursVal(empDays[d].start, empDays[d].end);
+      }
+    }
+    const user     = DB.users.find(u => u && u.name === name);
+    const rate     = user?.rate     || 0;
+    const rateType = user?.rateType || 'hourly';
+    const payout   = rate > 0 ? Math.round(rateType === 'shift' ? rate * shifts : rate * hours) : 0;
+    const pos      = user?.position || Object.values(empDays).find(d=>d?.position)?.position || '';
+    totalPayout += payout;
+    empStats.push({ name, shifts, hours, rate, rateType, payout, pos });
+  });
+
+  // Sort by payout desc
+  empStats.sort((a,b) => b.payout - a.payout);
+
+  empStats.forEach(({ name, shifts, hours, rate, rateType, payout, pos }) => {
+    html += `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 6px">
+        <div style="font-weight:700">${name}</div>
+        <div style="font-size:11px;color:var(--text3)">${pos}</div>
+      </td>
+      <td style="text-align:center;padding:10px 6px;font-weight:600">${shifts}</td>
+      <td style="text-align:center;padding:10px 6px;font-weight:600">${hours.toFixed(1)}</td>
+      <td style="text-align:center;padding:10px 6px;color:var(--text3);font-size:12px">${rate ? rate+'₽/'+(rateType==='shift'?'см':'ч') : '—'}</td>
+      <td style="text-align:right;padding:10px 6px;font-weight:800;color:${payout>0?'#4caf50':'var(--text3)'}">
+        ${payout>0?payout.toLocaleString('ru')+' ₽':'—'}
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody><tfoot><tr style="border-top:2px solid var(--border)">
+    <td colspan="4" style="padding:10px 6px;font-weight:800;font-size:14px">Итого ФОТ:</td>
+    <td style="text-align:right;padding:10px 6px;font-weight:800;font-size:16px;color:#4caf50">${totalPayout.toLocaleString('ru')} ₽</td>
+  </tr></tfoot></table></div>`;
+
+  containerEl.innerHTML = html;
+}
+
+
 loadDB();
 </script>
+<!-- Salary / Rate Modal -->
+<div class="modal-overlay" id="salary-modal">
+  <div class="modal" style="max-width:360px">
+    <button class="modal-close" onclick="closeSalaryModal()">✕</button>
+    <h3>💰 Зарплата</h3>
+    <div id="salary-modal-name" style="font-size:13px;color:var(--text3);margin-bottom:20px"></div>
+
+    <!-- Salary display -->
+    <div id="salary-display" style="background:var(--bg3);border-radius:var(--radius-sm);padding:16px;margin-bottom:20px;text-align:center">
+      <div style="font-size:11px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">Расчёт за месяц</div>
+      <div id="salary-display-amount" style="font-size:36px;font-weight:900;color:#4caf50"></div>
+      <div id="salary-display-detail" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
+    </div>
+
+    <!-- Rate settings (admin always, user for own profile) -->
+    <div id="salary-rate-edit">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Настройка ставки</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button id="rt-hourly" class="ptab active" onclick="setSalaryRateType('hourly')" style="flex:1">₽ / час</button>
+        <button id="rt-shift"  class="ptab"        onclick="setSalaryRateType('shift')"  style="flex:1">₽ / смена</button>
+      </div>
+      <div class="field-group" style="margin-bottom:16px">
+        <label id="salary-rate-label">Ставка (₽/час)</label>
+        <input type="number" id="salary-rate-input" placeholder="Например: 250" min="0" step="50"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 16px;color:var(--text);font-family:Manrope,sans-serif;font-size:16px;outline:none;font-weight:700"
+          oninput="updateSalaryPreview()">
+      </div>
+      <button class="calc-btn" onclick="saveSalaryRate()">💾 Сохранить ставку</button>
+    </div>
+  </div>
+</div>
+
 <!-- Firebase Loading Overlay -->
 <div id="fb-loading" style="display:none;position:fixed;inset:0;background:rgba(10,10,10,0.92);z-index:99999;flex-direction:column;align-items:center;justify-content:center;gap:16px">
   <div style="width:48px;height:48px;border:3px solid #2a2a2a;border-top-color:var(--red);border-radius:50%;animation:spin 0.8s linear infinite"></div>
